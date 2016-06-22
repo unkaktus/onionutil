@@ -38,31 +38,31 @@ func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
         }
         var ip IntroductionPoint
 
-        identity, err := onionutil.Base32Decode(string(doc.Entries["introduction-point"][0]))
+        identity, err := onionutil.Base32Decode(string(doc.Entries["introduction-point"].FJoined()))
         if err != nil {
             log.Printf("The IP has invalid idenity. Skipping")
             continue
         }
         ip.Identity = identity
 
-        ip.InternetAddress = net.ParseIP(string(doc.Entries["ip-address"][0]))
+        ip.InternetAddress = net.ParseIP(string(doc.Entries["ip-address"].FJoined()))
         if ip.InternetAddress == nil {
             log.Printf("Not a valid Internet address for an IntroPoint")
             continue
         }
-        onion_port, err := strconv.ParseUint(string(doc.Entries["onion-port"][0]), 10, 16)
+        onion_port, err := strconv.ParseUint(string(doc.Entries["onion-port"].FJoined()), 10, 16)
         if err != nil {
             log.Printf("Error parsing IP port: %v", err)
             continue
         }
         ip.OnionPort = uint16(onion_port)
-        onion_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["onion-key"][0])
+        onion_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["onion-key"].FJoined())
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue
         }
         ip.OnionKey = onion_key
-        service_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["service-key"][0])
+        service_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["service-key"].FJoined())
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue
