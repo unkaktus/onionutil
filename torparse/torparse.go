@@ -14,15 +14,17 @@ import (
     "encoding/pem"
 )
 
+type TorEntry [][]byte
+type TorEntries map[string]TorEntry
+
 type TorDocument struct {
-    Name    string
-    Id      string
-    Fields  map[string][][]byte
+    Docs  []TorDocument
+    Entries  TorEntries
 }
 
 var pemStart = []byte("-----BEGIN ")
 
-func ParseOutNextField(data []byte) (field string, content [][]byte, rest []byte, err error) {
+func ParseOutNextField(data []byte) (field string, content TorEntry, rest []byte, err error) {
         nl_split := bytes.SplitN(data, []byte("\n"), 2)
         if len(nl_split) != 2 {
             return field, content, data,
@@ -30,7 +32,6 @@ func ParseOutNextField(data []byte) (field string, content [][]byte, rest []byte
         }
         /* Overwrite with the rest */
         rest = nl_split[1]
-	/* test if we have pem data now. if so append to previous field */
         sp_split := bytes.SplitN(nl_split[0], []byte(" "), -1)
         if len(sp_split) <= 0 { /* We have no data left */
             return field, content, data,
@@ -39,6 +40,7 @@ func ParseOutNextField(data []byte) (field string, content [][]byte, rest []byte
 
 	field = string(sp_split[0])
 	content = sp_split[1:]
+	/* test if we have pem data now. if so append to previous field */
         if bytes.HasPrefix(rest, pemStart) {
 		block, pem_rest := pem.Decode(data)
                 content = append(content, block.Bytes)
@@ -51,7 +53,7 @@ func ParseOutNextField(data []byte) (field string, content [][]byte, rest []byte
 func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
         var doc *TorDocument
         var field string
-        var content [][]byte
+        var content TorEntry
         var doc_name string
 
         var parse_err error
@@ -70,12 +72,11 @@ func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
                     docs = append(docs, *doc) /* Append previous doc */
                 }
                 doc = &TorDocument{
-                    Fields: make(map[string][][]byte),
+			Docs: make([]TorDocument, 1),
+			Entries: make(TorEntries),
                 }
-                doc.Name = doc_name
-                doc.Id   = string(content[0])
             }
-	    doc.Fields[field] = content
+	    doc.Entries[field] = content
         }
         if doc != nil {
             docs = append(docs, *doc) /* Append a doc */
