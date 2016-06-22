@@ -15,11 +15,21 @@ import (
 )
 
 type TorEntry [][]byte
-type TorEntries map[string]TorEntry
+type TorEntries map[string][]TorEntry
 
 type TorDocument struct {
     Docs  []TorDocument
     Entries  TorEntries
+}
+
+func (te TorEntry) Joined() (joined []byte) {
+	for index, subentry := range te {
+		if index != 0 {
+			joined = append(joined, byte(' '))
+		}
+		joined = append(joined, subentry...)
+	}
+	return joined
 }
 
 var pemStart = []byte("-----BEGIN ")
@@ -77,7 +87,7 @@ func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
 			Entries: make(TorEntries),
                 }
             }
-	    doc.Entries[field] = content
+	    doc.Entries[field] = append(doc.Entries[field], content)
         }
         if doc != nil {
             docs = append(docs, *doc) /* Append a doc */
