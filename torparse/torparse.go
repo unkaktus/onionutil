@@ -73,9 +73,8 @@ func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
                 }
                 doc.Name = doc_name
                 doc.Id   = string(content)
-            } else { /* Non-special field */
-                doc.Fields[field] = content
             }
+	    doc.Fields[field] = content
         }
         if doc != nil {
             docs = append(docs, *doc) /* Append a doc */
