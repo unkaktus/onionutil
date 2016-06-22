@@ -12,6 +12,7 @@ import (
     "crypto/sha1"
     "encoding/base32"
     "strings"
+    "strconv"
     "onionutil/pkcs1"
 )
 
@@ -54,3 +55,7 @@ func OnionAddress(pk *rsa.PublicKey) (onion_address string, err error) {
     return onion_address, err
 }
 
+func InetPortFromByteString(str []byte) (port uint16, err error) {
+	p, err := strconv.ParseUint(string(str), 10, 16)
+	return uint16(p), err
+}

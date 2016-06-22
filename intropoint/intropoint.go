@@ -10,7 +10,6 @@ package intropoint
 import (
     "strings"
     "log"
-    "strconv"
     "net"
     "fmt"
     "encoding/pem"
@@ -50,12 +49,12 @@ func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
             log.Printf("Not a valid Internet address for an IntroPoint")
             continue
         }
-        onion_port, err := strconv.ParseUint(string(doc.Entries["onion-port"].FJoined()), 10, 16)
+        onion_port, err := onionutil.InetPortFromByteString(doc.Entries["onion-port"].FJoined())
         if err != nil {
             log.Printf("Error parsing IP port: %v", err)
             continue
         }
-        ip.OnionPort = uint16(onion_port)
+        ip.OnionPort = onion_port
         onion_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["onion-key"].FJoined())
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
