@@ -32,37 +32,37 @@ type IntroductionPoint struct {
 func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
     docs, _rest := torparse.ParseTorDocument([]byte(ips_str))
     for _, doc := range docs {
-        if doc.Name != "introduction-point" {
+        if _, ok := doc.Entries["introduction-point"]; !ok {
             log.Printf("Got a document that is not an introduction point")
             continue
         }
         var ip IntroductionPoint
 
-        identity, err := onionutil.Base32Decode(doc.Id)
+        identity, err := onionutil.Base32Decode(string(doc.Entries["introduction-point"][0]))
         if err != nil {
             log.Printf("The IP has invalid idenity. Skipping")
             continue
         }
         ip.Identity = identity
 
-        ip.InternetAddress = net.ParseIP(string(doc.Fields["ip-address"]))
+        ip.InternetAddress = net.ParseIP(string(doc.Entries["ip-address"][0]))
         if ip.InternetAddress == nil {
             log.Printf("Not a valid Internet address for an IntroPoint")
             continue
         }
-        onion_port, err := strconv.ParseUint(string(doc.Fields["onion-port"]), 10, 16)
+        onion_port, err := strconv.ParseUint(string(doc.Entries["onion-port"][0]), 10, 16)
         if err != nil {
             log.Printf("Error parsing IP port: %v", err)
             continue
         }
         ip.OnionPort = uint16(onion_port)
-        onion_key, _, err := pkcs1.DecodePublicKeyDER(doc.Fields["onion-key"])
+        onion_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["onion-key"][0])
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue
         }
         ip.OnionKey = onion_key
-        service_key, _, err := pkcs1.DecodePublicKeyDER(doc.Fields["service-key"])
+        service_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["service-key"][0])
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue

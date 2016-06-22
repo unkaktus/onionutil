@@ -60,20 +60,20 @@ func ComposeDescriptor(perm_pk *rsa.PublicKey,
 func ParseOnionDescriptors(descs_str string) (descs []OnionDescriptor, rest string) {
     docs, _rest := torparse.ParseTorDocument([]byte(descs_str))
     for _, doc := range docs {
-        if doc.Name != "rendezvous-service-descriptor" {
+        if _, ok := doc.Entries["rendezvous-service-descriptor"]; !ok {
             log.Printf("Got a document that is not an onion service")
             continue
         }
         var desc OnionDescriptor
 
-        version, err := strconv.ParseInt(string(doc.Fields["version"]), 10, 0)
+        version, err := strconv.ParseInt(string(doc.Entries["version"][0]), 10, 0)
         if err != nil {
             log.Printf("Error parsing descriptor version: %v", err)
             continue
         }
         desc.Version = int(version)
 
-        permanent_key, _, err := pkcs1.DecodePublicKeyDER(doc.Fields["permanent-key"])
+        permanent_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["permanent-key"][0])
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue
@@ -81,13 +81,13 @@ func ParseOnionDescriptors(descs_str string) (descs []OnionDescriptor, rest stri
         desc.PermanentKey = permanent_key
         //if (doc.Fields["introduction-points"]) {
             desc.IntroductionPoints, _ = intropoint.ParseIntroPoints(
-                                        string(doc.Fields["introduction-points"]))
+                                        string(doc.Entries["introduction-points"][0]))
         //}
-        if len(doc.Fields["signature"]) < 1 {
+        if len(doc.Entries["signature"][0]) < 1 {
             log.Printf("Empty signature")
             continue
         }
-        desc.Signature = doc.Fields["signature"]
+        desc.Signature = doc.Entries["signature"][0]
 
         // XXX: Check the signature? And strore unparsed original??
 
