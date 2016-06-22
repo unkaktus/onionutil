@@ -9,6 +9,7 @@ package torparse
 
 import (
     "fmt"
+//    "log"
     "bytes"
     "encoding/pem"
 )
@@ -16,48 +17,48 @@ import (
 type TorDocument struct {
     Name    string
     Id      string
-    Fields  map[string][]byte
+    Fields  map[string][][]byte
 }
 
+var pemStart = []byte("-----BEGIN ")
 
-func ParseOutNextField(data []byte) (field string, content []byte, rest []byte, err error) {
+func ParseOutNextField(data []byte) (field string, content [][]byte, rest []byte, err error) {
         nl_split := bytes.SplitN(data, []byte("\n"), 2)
         if len(nl_split) != 2 {
             return field, content, data,
-                   fmt.Errorf("Cannot split by NL")
+                   fmt.Errorf("Cannot split by newline")
         }
         /* Overwrite with the rest */
-        data = nl_split[1]
-
-        sp_split := bytes.SplitN(nl_split[0], []byte(" "), 2)
-        switch len(sp_split) {
-        case 2: /* We've got ASCII field */
-            return string(sp_split[0]), sp_split[1], data, err
-        case 1: /* We've got binary data in PEM */
-            if len(sp_split[0])!=0 {
-                block, pem_rest := pem.Decode(data)
-                return string(sp_split[0]), block.Bytes, pem_rest, err
-            }
-            fallthrough
-        case 0: /* We have no data left */
+        rest = nl_split[1]
+	/* test if we have pem data now. if so append to previous field */
+        sp_split := bytes.SplitN(nl_split[0], []byte(" "), -1)
+        if len(sp_split) <= 0 { /* We have no data left */
             return field, content, data,
                    fmt.Errorf("No data left")
         }
-        return field, content, data,
-               fmt.Errorf("Unexpected error")
+
+	field = string(sp_split[0])
+	content = sp_split[1:]
+        if bytes.HasPrefix(rest, pemStart) {
+		block, pem_rest := pem.Decode(data)
+                content = append(content, block.Bytes)
+		rest = pem_rest
+	}
+        return field, content, rest, err
 }
 
 // TODO: trim/skip empty strings/separators
 func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
         var doc *TorDocument
         var field string
-        var content []byte
+        var content [][]byte
         var doc_name string
 
         var parse_err error
         for true {
             field, content, doc_data, parse_err = ParseOutNextField(doc_data)
-            if parse_err != nil {
+            //log.Printf("parsed: %v : %v", field, content)
+	    if parse_err != nil {
                 //log.Printf("Error parsing document: %v", parse_err)
                 break;
             }
@@ -69,10 +70,10 @@ func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
                     docs = append(docs, *doc) /* Append previous doc */
                 }
                 doc = &TorDocument{
-                    Fields: make(map[string][]byte),
+                    Fields: make(map[string][][]byte),
                 }
                 doc.Name = doc_name
-                doc.Id   = string(content)
+                doc.Id   = string(content[0])
             }
 	    doc.Fields[field] = content
         }
