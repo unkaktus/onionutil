@@ -54,23 +54,24 @@ func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
         var doc *TorDocument
         var field string
         var content TorEntry
-        var doc_name string
+        var firstField string
 
         var parse_err error
-        for true {
+        for {
             field, content, doc_data, parse_err = ParseOutNextField(doc_data)
             //log.Printf("parsed: %v : %v", field, content)
 	    if parse_err != nil {
                 //log.Printf("Error parsing document: %v", parse_err)
                 break;
             }
-            if doc_name == "" { /* We're just in the begining - doc name */
-                doc_name = field
+            if firstField == "" { /* We're just in the begining - doc name */
+                firstField = field
             }
-            if field == doc_name {
+            if field == firstField {
                 if doc != nil {
-                    docs = append(docs, *doc) /* Append previous doc */
-                }
+		    /* Append previous doc */
+                    docs = append(docs, *doc)
+		}
                 doc = &TorDocument{
 			Docs: make([]TorDocument, 1),
 			Entries: make(TorEntries),
