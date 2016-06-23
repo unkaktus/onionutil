@@ -12,6 +12,8 @@ import (
     "crypto/rsa"
     "crypto/sha1"
     "encoding/base32"
+    "encoding/binary"
+    "time"
     "strings"
     "strconv"
     "onionutil/pkcs1"
@@ -19,6 +21,7 @@ import (
 
 
 const (
+	PublicationTimeFormat = "2006-01-02 15:04:05"
 	NTorOnionKeySize = 32
 )
 
@@ -120,5 +123,53 @@ func ParseBandwidthEntry(bandwidthE [][]byte) (bandwidth Bandwidth, err error) {
 		return bandwidth, err
 	}
 	bandwidth = Bandwidth{average, burst, observed}
+	return
+}
+
+type Extention struct {
+	ExtLength uint16
+	ExtType	byte
+	ExtFlags	byte
+	ExtData	[]byte
+}
+
+/*
+type CertKeyType byte
+
+const (
+	RESERVED0 CertKeyType	= 0x00
+	RESERVED1		= 0x01
+	RESERVED2		= 0x02
+	RESERVED3		= 0x03
+	
+*/
+
+type Certificate struct {
+	Version	uint8
+	CertType		byte
+	ExpirationDate	time.Time
+	CertKeyType	byte
+	CertifiedKey	[32]byte
+	NExtentions	uint8
+	Extentions	[]Extention
+	Signature	[64]byte
+}
+
+func ParseCertFromBytes(binCert []byte) (cert Certificate, err error) {
+	i := 0 /* Index */
+	cert.Version = uint8(binCert[i])
+	i+=1
+	cert.CertType = binCert[i]
+	i+=1
+	expirationHours := binary.BigEndian.Uint32(binCert[i:i+4])
+	i+=4
+	expirationDuration := time.Duration(expirationHours)*time.Hour
+	expirationIntDate := int64(expirationDuration.Seconds())
+	cert.ExpirationDate = time.Unix(expirationIntDate,0)
+	cert.CertKeyType = binCert[i]
+	i+=1
+        copy(cert.CertifiedKey[:], binCert[i:i+32])
+	i+=32
+	cert.NExtentions = uint8(binCert[i])
 	return
 }

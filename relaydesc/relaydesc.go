@@ -13,6 +13,9 @@ import (
     "bulb/utils/pkcs1"
     "crypto/rsa"
     "encoding/base64"
+    "strings"
+    "strconv"
+    "time"
     "net"
     "log"
 )
@@ -28,8 +31,13 @@ type Descriptor struct {
     SOCKSPort	uint16
     DirPort	uint16
 
+    IdentityEd25519 onionutil.Certificate
+
     Bandwidth	onionutil.Bandwidth
     Platform	onionutil.Platform
+    Published	time.Time
+    Fingerprint	string
+    Uptime	time.Duration
     ExtraInfoDigest	string
     OnionKey	*rsa.PublicKey
     SigningKey	*rsa.PublicKey
@@ -68,6 +76,17 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	    desc.DirPort = DirPort
 	} else { continue }
 
+	if value, ok := doc.Entries["identity-ed25519"]; ok {
+		if len(value[0]) <= 0 {
+			continue
+		}
+		cert, err := onionutil.ParseCertFromBytes(value[0][0])
+		if err != nil {
+			continue
+		}
+		desc.IdentityEd25519 = cert
+	}
+
 	if value, ok := doc.Entries["bandwidth"]; ok {
 		bandwidth, err := onionutil.ParseBandwidthEntry(value[0])
 		if err != nil {
@@ -83,8 +102,33 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	    desc.Platform = platform
 	} else { continue }
 
+	/* "protocols" fiels is *deprecated* thus not implemented */
+
+	if value, ok := doc.Entries["published"]; ok {
+		published, err := time.Parse(onionutil.PublicationTimeFormat,
+					string(value.FJoined()))
+		if err != nil {
+			continue
+		}
+		desc.Published = published
+	} else { continue }
+
+	if value, ok := doc.Entries["fingerprint"]; ok {
+		fingerprint := string(value.FJoined())
+		desc.Fingerprint = strings.Replace(fingerprint, " ", "", -1)
+	} else { continue }
+
+	if value, ok := doc.Entries["uptime"]; ok {
+		uptime, err := strconv.ParseUint(string(value.FJoined()), 10, 64)
+		if err != nil {
+			continue
+		}
+		desc.Uptime = time.Duration(uptime)*time.Second
+	}
+
 	if value, ok := doc.Entries["extra-info-digest"]; ok {
-		desc.ExtraInfoDigest = string(value.FJoined())
+		desc.ExtraInfoDigest = string(value[0][0])
+		/* Ignore extra data */
 	}
 
 	if value, ok := doc.Entries["onion-key"]; ok {
