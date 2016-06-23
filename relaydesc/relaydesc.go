@@ -31,9 +31,10 @@ type Descriptor struct {
     ORPort	uint16
     SOCKSPort	uint16
     DirPort	uint16
+    ORAddrs	[]net.TCPAddr
 
     IdentityEd25519	*onionutil.Certificate
-    MasterKeyEd25519	*onionutil.Ed25519Pubkey
+    MasterKeyEd25519	onionutil.Ed25519Pubkey
     Bandwidth	onionutil.Bandwidth
     Platform	onionutil.Platform
     Published	time.Time
@@ -50,6 +51,8 @@ type Descriptor struct {
     NTorOnionKeyCrossCert *onionutil.Certificate
     ExitPolicy	onionutil.ExitPolicy
     Exit6Policy	*onionutil.Exit6Policy
+    CachesExtraInfo	bool
+    AllowSingleHopExits	bool
 
     RouterSigEd25519	onionutil.Ed25519Signature
     RouterSignature	onionutil.RSASignature
@@ -77,6 +80,9 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	    DirPort, err := onionutil.InetPortFromByteString(routerF[4])
 	    if err != nil { continue }
 	    desc.DirPort = DirPort
+	    desc.ORAddrs = append(desc.ORAddrs,
+			net.TCPAddr{IP: desc.InternetAddress,
+                                    Port: int(ORPort)})
 	} else { continue }
 
 	if value, ok := doc.Entries["identity-ed25519"]; ok {
@@ -124,7 +130,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	    desc.Platform = platform
 	} else { continue }
 
-	/* "protocols" fiels is *deprecated* thus not implemented */
+	/* Dropping "protocols" field since it's *deprecated*  */
 
 	if value, ok := doc.Entries["published"]; ok {
 		published, err := time.Parse(onionutil.PublicationTimeFormat,
@@ -270,6 +276,8 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.Exit6Policy = &exit6Policy
 	}
 
+	/* MESSY: Skipping "family" hoping that it will be nuked soon */
+
 	if value, ok := doc.Entries["router-sig-ed25519"]; ok {
 		copy(desc.RouterSigEd25519[:], value.FJoined())
 	} else if _, required := doc.Entries["identity-ed25519"]; required {
@@ -279,25 +287,29 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		copy(desc.RouterSignature[:], value.FJoined())
 	} else { continue }
 
+	/* Skipping "read-history" and "write-history" due to *
+	 * their nastyness. Sorry, too sensitive. */
 
+	/* Skip "eventdns" since it's obsolete */
 
-/*
-        version, err := strconv.ParseInt(string(doc.Entries["version"].FJoined()), 10, 0)
-        if err != nil {
-            log.Printf("Error parsing descriptor version: %v", err)
-            continue
-        }
-        desc.Version = int(version)
+	_, cachesExtraInfo := doc.Entries["caches-extra-info"]
+	desc.CachesExtraInfo = cachesExtraInfo
 
-            desc.IntroductionPoints, _ = intropoint.ParseIntroPoints(
-                                        string(doc.Entries["introduction-points"].FJoined()))
-        if len(doc.Entries["signature"][0]) < 1 {
-            log.Printf("Empty signature")
-            continue
-        }
-        desc.Signature = doc.Entries["signature"].FJoined()
+	_, allowSingleHopExits := doc.Entries["allow-single-hop-exits"]
+	desc.AllowSingleHopExits = allowSingleHopExits
 
-	*/
+	if entries, ok := doc.Entries["or-address"]; ok {
+		for _, address := range entries {
+			tcpAddr, err := net.ResolveTCPAddr("tcp",
+					string(address[0]))
+			if err != nil {
+				continue
+			}
+			desc.ORAddrs = append(desc.ORAddrs,
+						*tcpAddr)
+		}
+	}
+
         descs = append(descs, desc)
     }
 
