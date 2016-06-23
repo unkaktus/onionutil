@@ -110,6 +110,11 @@ type ExitPolicy struct {
 	Accept []string
 }
 
+type Exit6Policy struct {
+	Accept	bool
+	PortList	[]string
+}
+
 type Bandwidth struct {
 	Average uint64
 	Burst	uint64
@@ -135,11 +140,16 @@ func ParseBandwidthEntry(bandwidthE [][]byte) (bandwidth Bandwidth, err error) {
 	bandwidth = Bandwidth{average, burst, observed}
 	return
 }
-const Ed25519PubkeySize = 32
-const Ed25519SignatureSize = 64
+const Ed25519PubkeySize		= 32
+const Ed25519SignatureSize	= 64
+const Curve25519PubkeySize	= 32
+const RSAPubkeySize		= 128
+const RSASignatureSize		= 128
 
-type Ed25519Pubkey [Ed25519PubkeySize]byte
-type Ed25519Signature [Ed25519SignatureSize]byte
+type Ed25519Pubkey	[Ed25519PubkeySize]byte
+type Ed25519Signature	[Ed25519SignatureSize]byte
+type Curve25519Pubkey	[Curve25519PubkeySize]byte
+type RSASignature	[RSASignatureSize]byte
 
 
 type ExtType byte
@@ -169,6 +179,7 @@ type Certificate struct {
 	NExtensions	uint8
 	Extensions	map[ExtType]Extension
 	Signature	Ed25519Signature
+	PubkeySign	bool
 }
 
 func ParseCertFromBytes(binCert []byte) (cert Certificate, err error) {
@@ -206,3 +217,4 @@ func ParseCertFromBytes(binCert []byte) (cert Certificate, err error) {
 	i+=Ed25519SignatureSize
 	return
 }
+

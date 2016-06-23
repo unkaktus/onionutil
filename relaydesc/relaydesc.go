@@ -32,8 +32,8 @@ type Descriptor struct {
     SOCKSPort	uint16
     DirPort	uint16
 
-    IdentityEd25519	onionutil.Certificate
-    MasterKeyEd25519	onionutil.Ed25519Pubkey
+    IdentityEd25519	*onionutil.Certificate
+    MasterKeyEd25519	*onionutil.Ed25519Pubkey
     Bandwidth	onionutil.Bandwidth
     Platform	onionutil.Platform
     Published	time.Time
@@ -46,13 +46,13 @@ type Descriptor struct {
     SigningKey	*rsa.PublicKey
     HSDir	bool
     Contact	string
-    NTorOnionKey []byte
+    NTorOnionKey onionutil.Curve25519Pubkey
+    NTorOnionKeyCrossCert *onionutil.Certificate
     ExitPolicy	onionutil.ExitPolicy
-    //PermanentKey    *rsa.PublicKey
-    //SecretIdPart    []byte
-    //PublicationTime time.Time
-    //ProtocolVersions    []int
-    Signature   []byte
+    Exit6Policy	*onionutil.Exit6Policy
+
+    RouterSigEd25519	onionutil.Ed25519Signature
+    RouterSignature	onionutil.RSASignature
 }
 
 // TODO return a pointer to descs not descs themselves?
@@ -87,7 +87,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if err != nil {
 			continue
 		}
-		desc.IdentityEd25519 = cert
+		desc.IdentityEd25519 = &cert
 	}
 
 	if value, ok := doc.Entries["master-key-ed25519"]; ok {
@@ -153,7 +153,8 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc.Entries["extra-info-digest"]; ok {
 		desc.ExtraInfoDigest = string(value[0][0])
-		/* Ignore extra data */
+		/* Ignore extra data since it it not in dir-spec. *
+		/* See #16227. */
 	}
 
 	if value, ok := doc.Entries["onion-key"]; ok {
@@ -213,7 +214,27 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if n != onionutil.NTorOnionKeySize {
 			continue
 		}
-		desc.NTorOnionKey = NTorOnionKey
+		copy(desc.NTorOnionKey[:], NTorOnionKey)
+	}
+
+	if value, ok := doc.Entries["ntor-onion-key-crosscert"]; ok {
+		ntorOnionKeyCrossCert, err := onionutil.ParseCertFromBytes(value[0][1])
+		if err != nil {
+			continue
+		}
+		switch string(value[0][0]) {
+			case "0":
+				ntorOnionKeyCrossCert.PubkeySign = false
+			case "1":
+				ntorOnionKeyCrossCert.PubkeySign = true
+			default:
+				continue
+		}
+		/* TODO: Skipping verification since I've found no */
+		/* Curve25519->Ed25519 implementation in Go. */
+		desc.NTorOnionKeyCrossCert = &ntorOnionKeyCrossCert
+	} else if _, required := doc.Entries["identity-25519"]; required {
+		continue
 	}
 
 	if entries, ok := doc.Entries["reject"]; ok {
@@ -231,9 +252,31 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		}
 	}
 
+	if entries, ok := doc.Entries["ipv6-policy"]; ok {
+		var exit6Policy onionutil.Exit6Policy
+		switch string(entries[0][0]) {
+			case "reject":
+				exit6Policy.Accept = false
+			case "accept":
+				exit6Policy.Accept = true
+			default:
+				continue
+		}
 
+		for _, port := range entries[0][1:] {
+			exit6Policy.PortList =
+				append(exit6Policy.PortList, string(port))
+		}
+		desc.Exit6Policy = &exit6Policy
+	}
+
+	if value, ok := doc.Entries["router-sig-ed25519"]; ok {
+		copy(desc.RouterSigEd25519[:], value.FJoined())
+	} else if _, required := doc.Entries["identity-ed25519"]; required {
+		continue
+	}
 	if value, ok := doc.Entries["router-signature"]; ok {
-		desc.Signature = value.FJoined()
+		copy(desc.RouterSignature[:], value.FJoined())
 	} else { continue }
 
 
