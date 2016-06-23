@@ -14,6 +14,7 @@ import (
     "crypto/rsa"
     "encoding/base64"
     "strings"
+    "reflect"
     "strconv"
     "time"
     "net"
@@ -31,15 +32,17 @@ type Descriptor struct {
     SOCKSPort	uint16
     DirPort	uint16
 
-    IdentityEd25519 onionutil.Certificate
-
+    IdentityEd25519	onionutil.Certificate
+    MasterKeyEd25519	onionutil.Ed25519Pubkey
     Bandwidth	onionutil.Bandwidth
     Platform	onionutil.Platform
     Published	time.Time
     Fingerprint	string
+    Hibernating	bool
     Uptime	time.Duration
     ExtraInfoDigest	string
     OnionKey	*rsa.PublicKey
+    OnionKeyCrosscert	[]byte
     SigningKey	*rsa.PublicKey
     HSDir	bool
     Contact	string
@@ -87,6 +90,25 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.IdentityEd25519 = cert
 	}
 
+	if value, ok := doc.Entries["master-key-ed25519"]; ok {
+		var masterKey = make([]byte, onionutil.Ed25519PubkeySize)
+		n, err := base64.RawStdEncoding.Decode(masterKey, value.FJoined())
+		if err != nil {
+			continue
+		}
+		if n != onionutil.Ed25519PubkeySize {
+			continue
+		}
+		signedWithEd25519Key, ok :=
+		desc.IdentityEd25519.Extensions[onionutil.ExtType(0x04)]
+		if ok {
+			if !reflect.DeepEqual(masterKey, signedWithEd25519Key.Data) {
+			continue
+			}
+		}
+		copy(desc.MasterKeyEd25519[:], masterKey)
+	}
+
 	if value, ok := doc.Entries["bandwidth"]; ok {
 		bandwidth, err := onionutil.ParseBandwidthEntry(value[0])
 		if err != nil {
@@ -118,6 +140,9 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.Fingerprint = strings.Replace(fingerprint, " ", "", -1)
 	} else { continue }
 
+	_, hibernating := doc.Entries["hibernating"]
+	desc.Hibernating = hibernating
+
 	if value, ok := doc.Entries["uptime"]; ok {
 		uptime, err := strconv.ParseUint(string(value.FJoined()), 10, 64)
 		if err != nil {
@@ -147,11 +172,27 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.SigningKey = SigningKey
 	} else { continue }
 
-	if _, ok := doc.Entries["hidden-service-dir"]; ok {
-		desc.HSDir = true
-	} else {
-		desc.HSDir = false
+	if value, ok := doc.Entries["onion-key-crosscert"]; ok {
+		crosscert := value.FJoined()
+		identityHash, err := onionutil.RSAPubkeyHash(desc.SigningKey)
+		if err != nil {
+			continue
+		}
+		crosscertData := append(identityHash,
+			desc.MasterKeyEd25519[:]...)
+		//hashed := onionutil.Hash(crosscertData)
+		/* XXX(dir-spec): Whoo-sch! We do sign (arbitrary long) *
+		/* data without hashing it. Seriouly? */
+		if err := rsa.VerifyPKCS1v15(desc.OnionKey, 0, crosscertData, crosscert); err != nil {
+			continue
+		}
+		desc.OnionKeyCrosscert = crosscert
+	} else if _, required := doc.Entries["identity-25519"]; required {
+		continue
 	}
+
+	_, hsdir := doc.Entries["hidden-service-dir"]
+	desc.HSDir = hsdir
 
 	if value, ok := doc.Entries["contact"]; ok {
 		desc.Contact = string(value.FJoined())
@@ -163,7 +204,11 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		n, err := base64.StdEncoding.Decode(NTorOnionKey,
 						    value.FJoined())
 		if err != nil {
-			continue
+			n, err = base64.RawStdEncoding.Decode(NTorOnionKey,
+						    value.FJoined())
+			if err != nil {
+				continue
+			}
 		}
 		if n != onionutil.NTorOnionKeySize {
 			continue

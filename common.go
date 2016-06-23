@@ -9,6 +9,7 @@ package onionutil
 
 import (
     "fmt"
+    "crypto"
     "crypto/rsa"
     "crypto/sha1"
     "encoding/base32"
@@ -25,21 +26,30 @@ const (
 	NTorOnionKeySize = 32
 )
 
+const HashType = crypto.SHA1
+
 func Hash(data []byte) (hash []byte) {
     h := sha1.New()
     h.Write(data)
     hash = h.Sum(nil)
     return hash
 }
-
-func CalcPermanentId(pk *rsa.PublicKey) ([]byte, error) {
+func RSAPubkeyHash(pk *rsa.PublicKey) (derHash []byte, err error) {
     der, err := pkcs1.EncodePublicKeyDER(pk)
     if err != nil {
-        return nil, err
+        return
     }
-    der_hash := Hash(der)
-    permid := der_hash[:10]
-    return permid, err
+    derHash = Hash(der)
+    return derHash, err
+}
+
+func CalcPermanentId(pk *rsa.PublicKey) (permId []byte, err error) {
+    derHash, err := RSAPubkeyHash(pk)
+    if err != nil {
+	return
+    }
+    permId = derHash[:10]
+    return
 }
 
 /* XXX: here might be an error for new ed25519 addresses (! mod 5bits=0) */
@@ -125,12 +135,18 @@ func ParseBandwidthEntry(bandwidthE [][]byte) (bandwidth Bandwidth, err error) {
 	bandwidth = Bandwidth{average, burst, observed}
 	return
 }
+const Ed25519PubkeySize = 32
+const Ed25519SignatureSize = 64
 
-type Extention struct {
-	ExtLength uint16
-	ExtType	byte
-	ExtFlags	byte
-	ExtData	[]byte
+type Ed25519Pubkey [Ed25519PubkeySize]byte
+type Ed25519Signature [Ed25519SignatureSize]byte
+
+
+type ExtType byte
+type Extension struct {
+	Type	ExtType
+	Flags	byte
+	Data	[]byte
 }
 
 /*
@@ -149,10 +165,10 @@ type Certificate struct {
 	CertType		byte
 	ExpirationDate	time.Time
 	CertKeyType	byte
-	CertifiedKey	[32]byte
-	NExtentions	uint8
-	Extentions	[]Extention
-	Signature	[64]byte
+	CertifiedKey	Ed25519Pubkey
+	NExtensions	uint8
+	Extensions	map[ExtType]Extension
+	Signature	Ed25519Signature
 }
 
 func ParseCertFromBytes(binCert []byte) (cert Certificate, err error) {
@@ -168,8 +184,25 @@ func ParseCertFromBytes(binCert []byte) (cert Certificate, err error) {
 	cert.ExpirationDate = time.Unix(expirationIntDate,0)
 	cert.CertKeyType = binCert[i]
 	i+=1
-        copy(cert.CertifiedKey[:], binCert[i:i+32])
-	i+=32
-	cert.NExtentions = uint8(binCert[i])
+        copy(cert.CertifiedKey[:], binCert[i:i+Ed25519PubkeySize])
+	i+=Ed25519PubkeySize
+	cert.NExtensions = uint8(binCert[i])
+	i+=1
+	cert.Extensions = make(map[ExtType]Extension)
+	for e := 0; e<int(cert.NExtensions); e++ {
+		var extension Extension
+		extLength := int(binary.BigEndian.Uint16(binCert[i:i+2]))
+		i+=2
+		extension.Type = ExtType(binCert[i])
+		i+=1
+		extension.Flags = binCert[i]
+		i+=1
+		extension.Data = binCert[i:i+extLength]
+		i+=extLength
+		/* We assume that there are no duplicates by ExtType */
+		cert.Extensions[extension.Type] = extension
+	}
+	copy(cert.Signature[:], binCert[i:i+Ed25519SignatureSize])
+	i+=Ed25519SignatureSize
 	return
 }

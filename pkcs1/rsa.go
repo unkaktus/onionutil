@@ -12,8 +12,11 @@ package pkcs1
 
 import (
 	"crypto/rsa"
+	"crypto/sha1"
 	"encoding/asn1"
+	"encoding/base32"
 	"math/big"
+	"strings"
 )
 
 type pkcs1RSAPrivKey struct {
@@ -84,3 +87,15 @@ func DecodePublicKeyDER(b []byte) (*rsa.PublicKey, []byte, error) {
 	return pk, rest, err
 }
 
+// OnionAddr returns the Tor Onion Service address corresponding to a given
+// rsa.PublicKey.
+func OnionAddr(pk *rsa.PublicKey) (string, error) {
+	der, err := EncodePublicKeyDER(pk)
+	if err != nil {
+		return "", err
+	}
+	h := sha1.Sum(der)
+	hb32 := base32.StdEncoding.EncodeToString(h[:10])
+
+	return strings.ToLower(hb32), nil
+}
