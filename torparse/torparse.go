@@ -18,10 +18,7 @@ type TorEntry [][]byte
 type TorEntries []TorEntry
 type TorEntriesMap map[string]TorEntries
 
-type TorDocument struct {
-    Docs  []TorDocument
-    Entries  TorEntriesMap
-}
+type TorDocument TorEntriesMap
 
 func (te TorEntry) Joined() (joined []byte) {
 	for index, subentry := range te {
@@ -66,7 +63,7 @@ func ParseOutNextField(data []byte) (field string, content TorEntry, rest []byte
 
 // TODO: trim/skip empty strings/separators
 func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
-        var doc *TorDocument
+        var doc TorDocument
         var field string
         var content TorEntry
         var firstField string
@@ -85,17 +82,14 @@ func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
             if field == firstField {
                 if doc != nil {
 		    /* Append previous doc */
-                    docs = append(docs, *doc)
+                    docs = append(docs, doc)
 		}
-                doc = &TorDocument{
-			Docs: make([]TorDocument, 1),
-			Entries: make(TorEntriesMap),
-                }
+                doc = make(TorDocument)
             }
-	    doc.Entries[field] = append(doc.Entries[field], content)
+	    doc[field] = append(doc[field], content)
         }
         if doc != nil {
-            docs = append(docs, *doc) /* Append a doc */
+            docs = append(docs, doc) /* Append a doc */
         }
 
         return docs, doc_data

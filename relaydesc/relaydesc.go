@@ -63,11 +63,11 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
     docs, _rest := torparse.ParseTorDocument(descs_str)
     for _, doc := range docs {
         var desc Descriptor
-        if string(doc.Entries["@type"].FJoined()) != documentType {
+        if string(doc["@type"].FJoined()) != documentType {
             log.Printf("Got a document that is not \"%s\"", documentType )
             continue
 	}
-	if value, ok := doc.Entries["router"]; ok {
+	if value, ok := doc["router"]; ok {
 	    routerF := value[0]
 	    desc.Nickname = string(routerF[0])
 	    desc.InternetAddress = net.ParseIP(string(routerF[1]))
@@ -85,7 +85,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
                                     Port: int(ORPort)})
 	} else { continue }
 
-	if value, ok := doc.Entries["identity-ed25519"]; ok {
+	if value, ok := doc["identity-ed25519"]; ok {
 		if len(value[0]) <= 0 {
 			continue
 		}
@@ -96,7 +96,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.IdentityEd25519 = &cert
 	}
 
-	if value, ok := doc.Entries["master-key-ed25519"]; ok {
+	if value, ok := doc["master-key-ed25519"]; ok {
 		var masterKey = make([]byte, onionutil.Ed25519PubkeySize)
 		n, err := base64.RawStdEncoding.Decode(masterKey, value.FJoined())
 		if err != nil {
@@ -115,14 +115,14 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		copy(desc.MasterKeyEd25519[:], masterKey)
 	}
 
-	if value, ok := doc.Entries["bandwidth"]; ok {
+	if value, ok := doc["bandwidth"]; ok {
 		bandwidth, err := onionutil.ParseBandwidthEntry(value[0])
 		if err != nil {
 			continue
 		}
 		desc.Bandwidth = bandwidth
 	} else { continue }
-	if value, ok := doc.Entries["platform"]; ok {
+	if value, ok := doc["platform"]; ok {
 	    platform, err := onionutil.ParsePlatformEntry(value[0])
 	    if err != nil {
 		continue
@@ -132,7 +132,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	/* Dropping "protocols" field since it's *deprecated*  */
 
-	if value, ok := doc.Entries["published"]; ok {
+	if value, ok := doc["published"]; ok {
 		published, err := time.Parse(onionutil.PublicationTimeFormat,
 					string(value.FJoined()))
 		if err != nil {
@@ -141,15 +141,15 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.Published = published
 	} else { continue }
 
-	if value, ok := doc.Entries["fingerprint"]; ok {
+	if value, ok := doc["fingerprint"]; ok {
 		fingerprint := string(value.FJoined())
 		desc.Fingerprint = strings.Replace(fingerprint, " ", "", -1)
 	} else { continue }
 
-	_, hibernating := doc.Entries["hibernating"]
+	_, hibernating := doc["hibernating"]
 	desc.Hibernating = hibernating
 
-	if value, ok := doc.Entries["uptime"]; ok {
+	if value, ok := doc["uptime"]; ok {
 		uptime, err := strconv.ParseUint(string(value.FJoined()), 10, 64)
 		if err != nil {
 			continue
@@ -157,13 +157,13 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.Uptime = time.Duration(uptime)*time.Second
 	}
 
-	if value, ok := doc.Entries["extra-info-digest"]; ok {
+	if value, ok := doc["extra-info-digest"]; ok {
 		desc.ExtraInfoDigest = string(value[0][0])
 		/* Ignore extra data since it it not in dir-spec. *
 		/* See #16227. */
 	}
 
-	if value, ok := doc.Entries["onion-key"]; ok {
+	if value, ok := doc["onion-key"]; ok {
 		OnionKey, _, err := pkcs1.DecodePublicKeyDER(value.FJoined())
 		if err != nil {
 		    continue
@@ -171,7 +171,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.OnionKey = OnionKey
 	} else { continue }
 
-	if value, ok := doc.Entries["signing-key"]; ok {
+	if value, ok := doc["signing-key"]; ok {
 		SigningKey, _, err := pkcs1.DecodePublicKeyDER(value.FJoined())
 		if err != nil {
 		    continue
@@ -179,7 +179,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		desc.SigningKey = SigningKey
 	} else { continue }
 
-	if value, ok := doc.Entries["onion-key-crosscert"]; ok {
+	if value, ok := doc["onion-key-crosscert"]; ok {
 		crosscert := value.FJoined()
 		identityHash, err := onionutil.RSAPubkeyHash(desc.SigningKey)
 		if err != nil {
@@ -194,18 +194,18 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			continue
 		}
 		desc.OnionKeyCrosscert = crosscert
-	} else if _, required := doc.Entries["identity-25519"]; required {
+	} else if _, required := doc["identity-25519"]; required {
 		continue
 	}
 
-	_, hsdir := doc.Entries["hidden-service-dir"]
+	_, hsdir := doc["hidden-service-dir"]
 	desc.HSDir = hsdir
 
-	if value, ok := doc.Entries["contact"]; ok {
+	if value, ok := doc["contact"]; ok {
 		desc.Contact = string(value.FJoined())
 	} else { continue }
 
-	if value, ok := doc.Entries["ntor-onion-key"]; ok {
+	if value, ok := doc["ntor-onion-key"]; ok {
 		/* XXX: why do we need +1 here? */
 		var NTorOnionKey = make([]byte, onionutil.NTorOnionKeySize+1)
 		n, err := base64.StdEncoding.Decode(NTorOnionKey,
@@ -223,7 +223,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		copy(desc.NTorOnionKey[:], NTorOnionKey)
 	}
 
-	if value, ok := doc.Entries["ntor-onion-key-crosscert"]; ok {
+	if value, ok := doc["ntor-onion-key-crosscert"]; ok {
 		ntorOnionKeyCrossCert, err := onionutil.ParseCertFromBytes(value[0][1])
 		if err != nil {
 			continue
@@ -239,18 +239,18 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		/* TODO: Skipping verification since I've found no */
 		/* Curve25519->Ed25519 implementation in Go. */
 		desc.NTorOnionKeyCrossCert = &ntorOnionKeyCrossCert
-	} else if _, required := doc.Entries["identity-25519"]; required {
+	} else if _, required := doc["identity-25519"]; required {
 		continue
 	}
 
-	if entries, ok := doc.Entries["reject"]; ok {
+	if entries, ok := doc["reject"]; ok {
 		for _, entry := range entries {
 		     desc.ExitPolicy.Reject =
 			append(desc.ExitPolicy.Reject,
 			       string(entry.Joined()))
 		}
 	}
-	if entries, ok := doc.Entries["accept"]; ok {
+	if entries, ok := doc["accept"]; ok {
 		for _, entry := range entries {
 		     desc.ExitPolicy.Accept =
 			append(desc.ExitPolicy.Accept,
@@ -258,7 +258,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		}
 	}
 
-	if entries, ok := doc.Entries["ipv6-policy"]; ok {
+	if entries, ok := doc["ipv6-policy"]; ok {
 		var exit6Policy onionutil.Exit6Policy
 		switch string(entries[0][0]) {
 			case "reject":
@@ -278,12 +278,12 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	/* MESSY: Skipping "family" hoping that it will be nuked soon */
 
-	if value, ok := doc.Entries["router-sig-ed25519"]; ok {
+	if value, ok := doc["router-sig-ed25519"]; ok {
 		copy(desc.RouterSigEd25519[:], value.FJoined())
-	} else if _, required := doc.Entries["identity-ed25519"]; required {
+	} else if _, required := doc["identity-ed25519"]; required {
 		continue
 	}
-	if value, ok := doc.Entries["router-signature"]; ok {
+	if value, ok := doc["router-signature"]; ok {
 		copy(desc.RouterSignature[:], value.FJoined())
 	} else { continue }
 
@@ -292,13 +292,13 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	/* Skip "eventdns" since it's obsolete */
 
-	_, cachesExtraInfo := doc.Entries["caches-extra-info"]
+	_, cachesExtraInfo := doc["caches-extra-info"]
 	desc.CachesExtraInfo = cachesExtraInfo
 
-	_, allowSingleHopExits := doc.Entries["allow-single-hop-exits"]
+	_, allowSingleHopExits := doc["allow-single-hop-exits"]
 	desc.AllowSingleHopExits = allowSingleHopExits
 
-	if entries, ok := doc.Entries["or-address"]; ok {
+	if entries, ok := doc["or-address"]; ok {
 		for _, address := range entries {
 			tcpAddr, err := net.ResolveTCPAddr("tcp",
 					string(address[0]))
