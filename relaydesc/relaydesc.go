@@ -10,7 +10,7 @@ package relaydesc
 import (
     "onionutil"
     "onionutil/torparse"
-    "bulb/utils/pkcs1"
+    "onionutil/pkcs1"
     "crypto/rsa"
     "encoding/base64"
     "strings"
