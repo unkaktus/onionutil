@@ -203,7 +203,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["contact"]; ok {
 		desc.Contact = string(value.FJoined())
-	} else { continue }
+	} //else { continue } //XXX: slow everything down 10x
 
 	if value, ok := doc["ntor-onion-key"]; ok {
 		/* XXX: why do we need +1 here? */
