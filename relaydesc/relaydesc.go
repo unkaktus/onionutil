@@ -45,7 +45,7 @@ type Descriptor struct {
     OnionKey	*rsa.PublicKey
     OnionKeyCrosscert	[]byte
     SigningKey	*rsa.PublicKey
-    HSDir	bool
+    HSDirVersions	[]uint8
     Contact	string
     NTorOnionKey onionutil.Curve25519Pubkey
     NTorOnionKeyCrossCert *onionutil.Certificate
@@ -68,24 +68,30 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
             continue
 	}
 	if value, ok := doc["router"]; ok {
-	    routerF := value[0]
-	    desc.Nickname = string(routerF[0])
-	    desc.InternetAddress = net.ParseIP(string(routerF[1]))
-	    ORPort, err := onionutil.InetPortFromByteString(routerF[2])
-	    if err != nil { continue }
-	    desc.ORPort = ORPort
-	    SOCKSPort, err := onionutil.InetPortFromByteString(routerF[3])
-	    if err != nil { continue }
-	    desc.SOCKSPort = SOCKSPort
-	    DirPort, err := onionutil.InetPortFromByteString(routerF[4])
-	    if err != nil { continue }
-	    desc.DirPort = DirPort
-	    desc.ORAddrs = append(desc.ORAddrs,
+		if !torparse.ExactlyOnce(value) {
+			continue
+		}
+		routerF := value[0]
+		desc.Nickname = string(routerF[0])
+		desc.InternetAddress = net.ParseIP(string(routerF[1]))
+		ORPort, err := onionutil.InetPortFromByteString(routerF[2])
+		if err != nil { continue }
+		desc.ORPort = ORPort
+		SOCKSPort, err := onionutil.InetPortFromByteString(routerF[3])
+		if err != nil { continue }
+		desc.SOCKSPort = SOCKSPort
+		DirPort, err := onionutil.InetPortFromByteString(routerF[4])
+		if err != nil { continue }
+		desc.DirPort = DirPort
+		desc.ORAddrs = append(desc.ORAddrs,
 			net.TCPAddr{IP: desc.InternetAddress,
-                                    Port: int(ORPort)})
+				    Port: int(ORPort)})
 	} else { continue }
 
 	if value, ok := doc["identity-ed25519"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		if len(value[0]) <= 0 {
 			continue
 		}
@@ -97,6 +103,9 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	}
 
 	if value, ok := doc["master-key-ed25519"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		var masterKey = make([]byte, onionutil.Ed25519PubkeySize)
 		n, err := base64.RawStdEncoding.Decode(masterKey, value.FJoined())
 		if err != nil {
@@ -116,23 +125,33 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	}
 
 	if value, ok := doc["bandwidth"]; ok {
+		if !torparse.ExactlyOnce(value) {
+			continue
+		}
 		bandwidth, err := onionutil.ParseBandwidthEntry(value[0])
 		if err != nil {
 			continue
 		}
 		desc.Bandwidth = bandwidth
 	} else { continue }
+
 	if value, ok := doc["platform"]; ok {
-	    platform, err := onionutil.ParsePlatformEntry(value[0])
-	    if err != nil {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
+		platform, err := onionutil.ParsePlatformEntry(value[0])
+		if err != nil {
 		continue
-	    }
-	    desc.Platform = platform
-	} else { continue }
+		}
+		desc.Platform = platform
+	}
 
 	/* Dropping "protocols" field since it's *deprecated*  */
 
 	if value, ok := doc["published"]; ok {
+		if !torparse.ExactlyOnce(value) {
+			continue
+		}
 		published, err := time.Parse(onionutil.PublicationTimeFormat,
 					string(value.FJoined()))
 		if err != nil {
@@ -142,14 +161,24 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	} else { continue }
 
 	if value, ok := doc["fingerprint"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		fingerprint := string(value.FJoined())
 		desc.Fingerprint = strings.Replace(fingerprint, " ", "", -1)
-	} else { continue }
+	}
 
-	_, hibernating := doc["hibernating"]
-	desc.Hibernating = hibernating
+	if value, ok := doc["hibernating"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
+		desc.Hibernating = ok
+	}
 
 	if value, ok := doc["uptime"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		uptime, err := strconv.ParseUint(string(value.FJoined()), 10, 64)
 		if err != nil {
 			continue
@@ -158,12 +187,18 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	}
 
 	if value, ok := doc["extra-info-digest"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		desc.ExtraInfoDigest = string(value[0][0])
 		/* Ignore extra data since it it not in dir-spec. *
 		/* See #16227. */
 	}
 
 	if value, ok := doc["onion-key"]; ok {
+		if !torparse.ExactlyOnce(value) {
+			continue
+		}
 		OnionKey, _, err := pkcs1.DecodePublicKeyDER(value.FJoined())
 		if err != nil {
 		    continue
@@ -172,6 +207,9 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	} else { continue }
 
 	if value, ok := doc["signing-key"]; ok {
+		if !torparse.ExactlyOnce(value) {
+			continue
+		}
 		SigningKey, _, err := pkcs1.DecodePublicKeyDER(value.FJoined())
 		if err != nil {
 		    continue
@@ -194,18 +232,38 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			continue
 		}
 		desc.OnionKeyCrosscert = crosscert
-	} else if _, required := doc["identity-25519"]; required {
+	} else if _, required := doc["identity-ed25519"]; required {
 		continue
 	}
 
-	_, hsdir := doc["hidden-service-dir"]
-	desc.HSDir = hsdir
+	if value, ok := doc["hidden-service-dir"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
+		if len(value[0]) ==0 {
+			desc.HSDirVersions = []uint8{2}
+		} else {
+			for _, version := range value[0] {
+				hsDescVersion, err := strconv.ParseUint(string(version), 10, 8)
+				if err != nil {
+					continue //XXX goto err!
+				}
+				desc.HSDirVersions = append(desc.HSDirVersions, uint8(hsDescVersion))
+			}
+		}
+	}
 
 	if value, ok := doc["contact"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		desc.Contact = string(value.FJoined())
 	} //else { continue } //XXX: slow everything down 10x
 
 	if value, ok := doc["ntor-onion-key"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		/* XXX: why do we need +1 here? */
 		var NTorOnionKey = make([]byte, onionutil.NTorOnionKeySize+1)
 		n, err := base64.StdEncoding.Decode(NTorOnionKey,
@@ -221,9 +279,15 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			continue
 		}
 		copy(desc.NTorOnionKey[:], NTorOnionKey)
+	} else if _, required := doc["identity-ed25519"]; required {
+		continue
 	}
 
+
 	if value, ok := doc["ntor-onion-key-crosscert"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		ntorOnionKeyCrossCert, err := onionutil.ParseCertFromBytes(value[0][1])
 		if err != nil {
 			continue
@@ -239,7 +303,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		/* TODO: Skipping verification since I've found no */
 		/* Curve25519->Ed25519 implementation in Go. */
 		desc.NTorOnionKeyCrossCert = &ntorOnionKeyCrossCert
-	} else if _, required := doc["identity-25519"]; required {
+	} else if _, required := doc["identity-ed25519"]; required {
 		continue
 	}
 
@@ -259,6 +323,9 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	}
 
 	if entries, ok := doc["ipv6-policy"]; ok {
+		if !torparse.AtMostOnce(entries) {
+			continue
+		}
 		var exit6Policy onionutil.Exit6Policy
 		switch string(entries[0][0]) {
 			case "reject":
@@ -279,11 +346,17 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	/* MESSY: Skipping "family" hoping that it will be nuked soon */
 
 	if value, ok := doc["router-sig-ed25519"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
 		copy(desc.RouterSigEd25519[:], value.FJoined())
 	} else if _, required := doc["identity-ed25519"]; required {
 		continue
 	}
 	if value, ok := doc["router-signature"]; ok {
+		if !torparse.ExactlyOnce(value) {
+			continue
+		}
 		copy(desc.RouterSignature[:], value.FJoined())
 	} else { continue }
 
@@ -292,11 +365,25 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	/* Skip "eventdns" since it's obsolete */
 
-	_, cachesExtraInfo := doc["caches-extra-info"]
-	desc.CachesExtraInfo = cachesExtraInfo
+	if value, ok := doc["caches-extra-info"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
+		if len(value[0]) != 1 {
+			continue
+		}
+		desc.CachesExtraInfo = true
+	}
 
-	_, allowSingleHopExits := doc["allow-single-hop-exits"]
-	desc.AllowSingleHopExits = allowSingleHopExits
+	if value, ok := doc["allow-single-hop-exits"]; ok {
+		if !torparse.AtMostOnce(value) {
+			continue
+		}
+		if len(value[0]) != 1 {
+			continue
+		}
+		desc.AllowSingleHopExits = true
+	}
 
 	if entries, ok := doc["or-address"]; ok {
 		for _, address := range entries {

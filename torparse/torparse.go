@@ -30,6 +30,14 @@ func (te TorEntry) Joined() (joined []byte) {
 	return joined
 }
 
+func ExactlyOnce(e TorEntries) bool {
+	return len(e) == 1
+}
+
+func AtMostOnce(e TorEntries) bool {
+	return len(e) <= 1
+}
+
 func (entries TorEntries) FJoined() (joined []byte) {
 	return entries[0].Joined()
 }
