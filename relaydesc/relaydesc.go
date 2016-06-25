@@ -69,56 +69,56 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	}
 	if value, ok := doc["router"]; ok {
 		if !torparse.ExactlyOnce(value) {
-			continue
+			goto Broken
 		}
 		routerF := value[0]
 		desc.Nickname = string(routerF[0])
 		desc.InternetAddress = net.ParseIP(string(routerF[1]))
 		ORPort, err := onionutil.InetPortFromByteString(routerF[2])
-		if err != nil { continue }
+		if err != nil { goto Broken }
 		desc.ORPort = ORPort
 		SOCKSPort, err := onionutil.InetPortFromByteString(routerF[3])
-		if err != nil { continue }
+		if err != nil { goto Broken }
 		desc.SOCKSPort = SOCKSPort
 		DirPort, err := onionutil.InetPortFromByteString(routerF[4])
-		if err != nil { continue }
+		if err != nil { goto Broken }
 		desc.DirPort = DirPort
 		desc.ORAddrs = append(desc.ORAddrs,
 			net.TCPAddr{IP: desc.InternetAddress,
 				    Port: int(ORPort)})
-	} else { continue }
+	} else { goto Broken }
 
 	if value, ok := doc["identity-ed25519"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		if len(value[0]) <= 0 {
-			continue
+			goto Broken
 		}
 		cert, err := onionutil.ParseCertFromBytes(value[0][0])
 		if err != nil {
-			continue
+			goto Broken
 		}
 		desc.IdentityEd25519 = &cert
 	}
 
 	if value, ok := doc["master-key-ed25519"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		var masterKey = make([]byte, onionutil.Ed25519PubkeySize)
 		n, err := base64.RawStdEncoding.Decode(masterKey, value.FJoined())
 		if err != nil {
-			continue
+			goto Broken
 		}
 		if n != onionutil.Ed25519PubkeySize {
-			continue
+			goto Broken
 		}
 		signedWithEd25519Key, ok :=
 		desc.IdentityEd25519.Extensions[onionutil.ExtType(0x04)]
 		if ok {
 			if !reflect.DeepEqual(masterKey, signedWithEd25519Key.Data) {
-			continue
+			goto Broken
 			}
 		}
 		copy(desc.MasterKeyEd25519[:], masterKey)
@@ -126,22 +126,23 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["bandwidth"]; ok {
 		if !torparse.ExactlyOnce(value) {
-			continue
+			goto Broken
 		}
 		bandwidth, err := onionutil.ParseBandwidthEntry(value[0])
 		if err != nil {
-			continue
+			goto Broken
 		}
 		desc.Bandwidth = bandwidth
-	} else { continue }
+	} else { goto Broken }
 
-	if value, ok := doc["platform"]; ok {
+	if value, ok := doc["platform"]; ok {  //XXX: maybe slow
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		platform, err := onionutil.ParsePlatformEntry(value[0])
 		if err != nil {
-		continue
+			log.Printf("platerr: %v", err)
+			goto Broken
 		}
 		desc.Platform = platform
 	}
@@ -150,19 +151,19 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["published"]; ok {
 		if !torparse.ExactlyOnce(value) {
-			continue
+			goto Broken
 		}
 		published, err := time.Parse(onionutil.PublicationTimeFormat,
 					string(value.FJoined()))
 		if err != nil {
-			continue
+			goto Broken
 		}
 		desc.Published = published
-	} else { continue }
+	} else { goto Broken }
 
 	if value, ok := doc["fingerprint"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		fingerprint := string(value.FJoined())
 		desc.Fingerprint = strings.Replace(fingerprint, " ", "", -1)
@@ -170,25 +171,25 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["hibernating"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		desc.Hibernating = ok
 	}
 
 	if value, ok := doc["uptime"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		uptime, err := strconv.ParseUint(string(value.FJoined()), 10, 64)
 		if err != nil {
-			continue
+			goto Broken
 		}
 		desc.Uptime = time.Duration(uptime)*time.Second
 	}
 
 	if value, ok := doc["extra-info-digest"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		desc.ExtraInfoDigest = string(value[0][0])
 		/* Ignore extra data since it it not in dir-spec. *
@@ -197,31 +198,31 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["onion-key"]; ok {
 		if !torparse.ExactlyOnce(value) {
-			continue
+			goto Broken
 		}
 		OnionKey, _, err := pkcs1.DecodePublicKeyDER(value.FJoined())
 		if err != nil {
-		    continue
+		    goto Broken
 		}
 		desc.OnionKey = OnionKey
-	} else { continue }
+	} else { goto Broken }
 
 	if value, ok := doc["signing-key"]; ok {
 		if !torparse.ExactlyOnce(value) {
-			continue
+			goto Broken
 		}
 		SigningKey, _, err := pkcs1.DecodePublicKeyDER(value.FJoined())
 		if err != nil {
-		    continue
+		    goto Broken
 		}
 		desc.SigningKey = SigningKey
-	} else { continue }
+	} else { goto Broken }
 
 	if value, ok := doc["onion-key-crosscert"]; ok {
 		crosscert := value.FJoined()
 		identityHash, err := onionutil.RSAPubkeyHash(desc.SigningKey)
 		if err != nil {
-			continue
+			goto Broken
 		}
 		crosscertData := append(identityHash,
 			desc.MasterKeyEd25519[:]...)
@@ -229,16 +230,16 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		/* XXX(dir-spec): Whoo-sch! We do sign (arbitrary long) *
 		/* data without hashing it. Seriouly? */
 		if err := rsa.VerifyPKCS1v15(desc.OnionKey, 0, crosscertData, crosscert); err != nil {
-			continue
+			goto Broken
 		}
 		desc.OnionKeyCrosscert = crosscert
 	} else if _, required := doc["identity-ed25519"]; required {
-		continue
+		goto Broken
 	}
 
 	if value, ok := doc["hidden-service-dir"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		if len(value[0]) ==0 {
 			desc.HSDirVersions = []uint8{2}
@@ -246,7 +247,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			for _, version := range value[0] {
 				hsDescVersion, err := strconv.ParseUint(string(version), 10, 8)
 				if err != nil {
-					continue //XXX goto err!
+					goto Broken
 				}
 				desc.HSDirVersions = append(desc.HSDirVersions, uint8(hsDescVersion))
 			}
@@ -255,14 +256,14 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["contact"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		desc.Contact = string(value.FJoined())
 	} //else { continue } //XXX: slow everything down 10x
 
 	if value, ok := doc["ntor-onion-key"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		/* XXX: why do we need +1 here? */
 		var NTorOnionKey = make([]byte, onionutil.NTorOnionKeySize+1)
@@ -272,25 +273,25 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			n, err = base64.RawStdEncoding.Decode(NTorOnionKey,
 						    value.FJoined())
 			if err != nil {
-				continue
+				goto Broken
 			}
 		}
 		if n != onionutil.NTorOnionKeySize {
-			continue
+			goto Broken
 		}
 		copy(desc.NTorOnionKey[:], NTorOnionKey)
 	} else if _, required := doc["identity-ed25519"]; required {
-		continue
+		goto Broken
 	}
 
 
 	if value, ok := doc["ntor-onion-key-crosscert"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		ntorOnionKeyCrossCert, err := onionutil.ParseCertFromBytes(value[0][1])
 		if err != nil {
-			continue
+			goto Broken
 		}
 		switch string(value[0][0]) {
 			case "0":
@@ -298,15 +299,15 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			case "1":
 				ntorOnionKeyCrossCert.PubkeySign = true
 			default:
-				continue
+				goto Broken
 		}
 		/* TODO: Skipping verification since I've found no */
 		/* Curve25519->Ed25519 implementation in Go. */
 		desc.NTorOnionKeyCrossCert = &ntorOnionKeyCrossCert
 	} else if _, required := doc["identity-ed25519"]; required {
-		continue
+		goto Broken
 	}
-
+	// XXX: It doesn't check exit policy validity
 	if entries, ok := doc["reject"]; ok {
 		for _, entry := range entries {
 		     desc.ExitPolicy.Reject =
@@ -314,6 +315,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			       string(entry.Joined()))
 		}
 	}
+	// XXX: It doesn't check exit policy validity
 	if entries, ok := doc["accept"]; ok {
 		for _, entry := range entries {
 		     desc.ExitPolicy.Accept =
@@ -324,7 +326,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if entries, ok := doc["ipv6-policy"]; ok {
 		if !torparse.AtMostOnce(entries) {
-			continue
+			goto Broken
 		}
 		var exit6Policy onionutil.Exit6Policy
 		switch string(entries[0][0]) {
@@ -333,7 +335,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			case "accept":
 				exit6Policy.Accept = true
 			default:
-				continue
+				goto Broken
 		}
 
 		for _, port := range entries[0][1:] {
@@ -347,18 +349,18 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["router-sig-ed25519"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
 		copy(desc.RouterSigEd25519[:], value.FJoined())
 	} else if _, required := doc["identity-ed25519"]; required {
-		continue
+		goto Broken
 	}
 	if value, ok := doc["router-signature"]; ok {
 		if !torparse.ExactlyOnce(value) {
-			continue
+			goto Broken
 		}
 		copy(desc.RouterSignature[:], value.FJoined())
-	} else { continue }
+	} else { goto Broken }
 
 	/* Skipping "read-history" and "write-history" due to *
 	 * their nastyness. Sorry, too sensitive. */
@@ -367,20 +369,20 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["caches-extra-info"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
-		if len(value[0]) != 1 {
-			continue
+		if len(value[0]) != 0 {
+			goto Broken
 		}
 		desc.CachesExtraInfo = true
 	}
 
 	if value, ok := doc["allow-single-hop-exits"]; ok {
 		if !torparse.AtMostOnce(value) {
-			continue
+			goto Broken
 		}
-		if len(value[0]) != 1 {
-			continue
+		if len(value[0]) != 0 {
+			goto Broken
 		}
 		desc.AllowSingleHopExits = true
 	}
@@ -390,7 +392,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			tcpAddr, err := net.ResolveTCPAddr("tcp",
 					string(address[0]))
 			if err != nil {
-				continue
+				goto Broken
 			}
 			desc.ORAddrs = append(desc.ORAddrs,
 						*tcpAddr)
@@ -398,6 +400,11 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	}
 
         descs = append(descs, desc)
+	continue
+	Broken:
+		log.Printf("-broken-")
+		// if saveBroken ...
+		continue
     }
 
     rest = string(_rest)

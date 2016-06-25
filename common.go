@@ -16,8 +16,12 @@ import (
     "encoding/binary"
     "time"
     "strings"
+    "bytes"
     "strconv"
+    "reflect"
     "onionutil/pkcs1"
+
+    "onionutil/torparse"
 )
 
 
@@ -84,20 +88,22 @@ type Platform struct {
     SoftwareName string
     SoftwareVersion string
     Name string
-    Extra string
 }
 
-func ParsePlatformEntry(platformE [][]byte) (platform Platform, err error) {
+func ParsePlatformEntry(platformE torparse.TorEntry) (platform Platform, err error) {
     /* XXX: lil crafty */
-    if len(platformE) != 4 {
-	return platform, fmt.Errorf("Platform entry length is not equal 4")
+    var onIndexes []int
+    for i, word := range platformE {
+	if reflect.DeepEqual(word, []byte("on")) {
+		onIndexes = append(onIndexes, i)
+	}
     }
-    if string(platformE[2]) != "on" {
-	return platform, fmt.Errorf("No 'on' keyword found")
+    if len(onIndexes) != 1 {
+	return platform, fmt.Errorf("Platform string contains not exacly one \" on \"")
     }
-    platform = Platform{Name: string(platformE[3]),
-			      SoftwareName: string(platformE[0]),
-			      SoftwareVersion: string(platformE[1]),
+    platform = Platform{Name: string(bytes.Join(platformE[onIndexes[0]+1:], []byte(" "))),
+			SoftwareName: string(bytes.Join(platformE[:onIndexes[0]-1], []byte(" "))),
+			SoftwareVersion: string(platformE[onIndexes[0]-1]),
 			      }
     return platform, err
 }
