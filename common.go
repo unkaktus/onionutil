@@ -21,7 +21,6 @@ import (
     "reflect"
     "onionutil/pkcs1"
 
-    "onionutil/torparse"
 )
 
 
@@ -90,7 +89,7 @@ type Platform struct {
     Name string
 }
 
-func ParsePlatformEntry(platformE torparse.TorEntry) (platform Platform, err error) {
+func ParsePlatformEntry(platformE [][]byte) (platform Platform, err error) {
     /* XXX: lil crafty */
     var onIndexes []int
     for i, word := range platformE {

@@ -14,14 +14,17 @@ import (
     "encoding/pem"
 )
 
-type TorEntry [][]byte
-type TorEntries []TorEntry
-type TorEntriesMap map[string]TorEntries
+type TorEntry struct {
+	Content	[][]byte
+	Index	uint
+}
 
-type TorDocument TorEntriesMap
+type TorEntries []TorEntry
+
+type TorDocument map[string]TorEntries
 
 func (te TorEntry) Joined() (joined []byte) {
-	for index, subentry := range te {
+	for index, subentry := range te.Content {
 		if index != 0 {
 			joined = append(joined, byte(' '))
 		}
@@ -44,7 +47,7 @@ func (entries TorEntries) FJoined() (joined []byte) {
 
 var pemStart = []byte("-----BEGIN ")
 
-func ParseOutNextField(data []byte) (field string, content TorEntry, rest []byte, err error) {
+func ParseOutNextField(data []byte) (field string, content [][]byte, rest []byte, err error) {
         nl_split := bytes.SplitN(data, []byte("\n"), 2)
         if len(nl_split) != 2 {
             return field, content, data,
@@ -73,7 +76,8 @@ func ParseOutNextField(data []byte) (field string, content TorEntry, rest []byte
 func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
         var doc TorDocument
         var field string
-        var content TorEntry
+        var content [][]byte
+	var index uint
         var firstField string
 
         var parse_err error
@@ -93,8 +97,10 @@ func ParseTorDocument(doc_data []byte) (docs []TorDocument, rest []byte) {
                     docs = append(docs, doc)
 		}
                 doc = make(TorDocument)
+		index = 0
             }
-	    doc[field] = append(doc[field], content)
+	    doc[field] = append(doc[field], TorEntry{Content: content, Index: index})
+	    index++
         }
         if doc != nil {
             docs = append(docs, doc) /* Append a doc */

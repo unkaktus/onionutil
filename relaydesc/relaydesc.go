@@ -72,15 +72,15 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			goto Broken
 		}
 		routerF := value[0]
-		desc.Nickname = string(routerF[0])
-		desc.InternetAddress = net.ParseIP(string(routerF[1]))
-		ORPort, err := onionutil.InetPortFromByteString(routerF[2])
+		desc.Nickname = string(routerF.Content[0])
+		desc.InternetAddress = net.ParseIP(string(routerF.Content[1]))
+		ORPort, err := onionutil.InetPortFromByteString(routerF.Content[2])
 		if err != nil { goto Broken }
 		desc.ORPort = ORPort
-		SOCKSPort, err := onionutil.InetPortFromByteString(routerF[3])
+		SOCKSPort, err := onionutil.InetPortFromByteString(routerF.Content[3])
 		if err != nil { goto Broken }
 		desc.SOCKSPort = SOCKSPort
-		DirPort, err := onionutil.InetPortFromByteString(routerF[4])
+		DirPort, err := onionutil.InetPortFromByteString(routerF.Content[4])
 		if err != nil { goto Broken }
 		desc.DirPort = DirPort
 		desc.ORAddrs = append(desc.ORAddrs,
@@ -92,10 +92,10 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		if len(value[0]) <= 0 {
+		if len(value[0].Content) <= 0 {
 			goto Broken
 		}
-		cert, err := onionutil.ParseCertFromBytes(value[0][0])
+		cert, err := onionutil.ParseCertFromBytes(value[0].Content[0])
 		if err != nil {
 			goto Broken
 		}
@@ -128,7 +128,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.ExactlyOnce(value) {
 			goto Broken
 		}
-		bandwidth, err := onionutil.ParseBandwidthEntry(value[0])
+		bandwidth, err := onionutil.ParseBandwidthEntry(value[0].Content)
 		if err != nil {
 			goto Broken
 		}
@@ -139,7 +139,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		platform, err := onionutil.ParsePlatformEntry(value[0])
+		platform, err := onionutil.ParsePlatformEntry(value[0].Content)
 		if err != nil {
 			log.Printf("platerr: %v", err)
 			goto Broken
@@ -191,7 +191,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		desc.ExtraInfoDigest = string(value[0][0])
+		desc.ExtraInfoDigest = string(value[0].Content[0])
 		/* Ignore extra data since it it not in dir-spec. *
 		/* See #16227. */
 	}
@@ -241,10 +241,10 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		if len(value[0]) ==0 {
+		if len(value[0].Content) ==0 {
 			desc.HSDirVersions = []uint8{2}
 		} else {
-			for _, version := range value[0] {
+			for _, version := range value[0].Content {
 				hsDescVersion, err := strconv.ParseUint(string(version), 10, 8)
 				if err != nil {
 					goto Broken
@@ -289,11 +289,11 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		ntorOnionKeyCrossCert, err := onionutil.ParseCertFromBytes(value[0][1])
+		ntorOnionKeyCrossCert, err := onionutil.ParseCertFromBytes(value[0].Content[1])
 		if err != nil {
 			goto Broken
 		}
-		switch string(value[0][0]) {
+		switch string(value[0].Content[0]) {
 			case "0":
 				ntorOnionKeyCrossCert.PubkeySign = false
 			case "1":
@@ -329,7 +329,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			goto Broken
 		}
 		var exit6Policy onionutil.Exit6Policy
-		switch string(entries[0][0]) {
+		switch string(entries[0].Content[0]) {
 			case "reject":
 				exit6Policy.Accept = false
 			case "accept":
@@ -338,7 +338,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 				goto Broken
 		}
 
-		for _, port := range entries[0][1:] {
+		for _, port := range entries[0].Content[1:] {
 			exit6Policy.PortList =
 				append(exit6Policy.PortList, string(port))
 		}
@@ -371,7 +371,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		if len(value[0]) != 0 {
+		if len(value[0].Content) != 0 {
 			goto Broken
 		}
 		desc.CachesExtraInfo = true
@@ -381,7 +381,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		if len(value[0]) != 0 {
+		if len(value[0].Content) != 0 {
 			goto Broken
 		}
 		desc.AllowSingleHopExits = true
@@ -390,7 +390,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 	if entries, ok := doc["or-address"]; ok {
 		for _, address := range entries {
 			tcpAddr, err := net.ResolveTCPAddr("tcp",
-					string(address[0]))
+					string(address.Content[0]))
 			if err != nil {
 				goto Broken
 			}
