@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	documentType = "@type network-status-consensus-3 1.0"
+	documentType = "network-status-consensus-3 1.0"
 )
 
 
@@ -65,6 +65,7 @@ func ParseNetstatuses(data []byte) (netstatuses []Netstatus, rest string) {
                 goto Broken
 	    }
         }
+	log.Printf("%+v", doc["@type"])
 	if rEntries, ok := doc["r"]; ok {
 		dirFooter, ok := doc["directory-footer"]
 		if !ok {
@@ -201,30 +202,6 @@ func ParseNetstatuses(data []byte) (netstatuses []Netstatus, rest string) {
 
 	} else { goto Broken }
 
-
-
-	/*
-	if value, ok := doc["router"]; ok {
-		if !torparse.ExactlyOnce(value) {
-			goto Broken
-		}
-		routerF := value[0]
-		desc.Nickname = string(routerF[0])
-		desc.InternetAddress = net.ParseIP(string(routerF[1]))
-		ORPort, err := onionutil.InetPortFromByteString(routerF[2])
-		if err != nil { goto Broken }
-		desc.ORPort = ORPort
-		SOCKSPort, err := onionutil.InetPortFromByteString(routerF[3])
-		if err != nil { goto Broken }
-		desc.SOCKSPort = SOCKSPort
-		DirPort, err := onionutil.InetPortFromByteString(routerF[4])
-		if err != nil { goto Broken }
-		desc.DirPort = DirPort
-		desc.ORAddrs = append(desc.ORAddrs,
-			net.TCPAddr{IP: desc.InternetAddress,
-				    Port: int(ORPort)})
-	} else { goto Broken }
-	*/
 
         netstatuses = append(netstatuses, netstatus)
 	continue
