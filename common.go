@@ -13,6 +13,7 @@ import (
     "crypto/rsa"
     "crypto/sha1"
     "encoding/base32"
+    "encoding/base64"
     "encoding/binary"
     "time"
     "strings"
@@ -66,6 +67,15 @@ func Base32Decode(b32 string) (binary []byte, err error) {
     return binary, err
 }
 
+func Base64Decode(b64 []byte) (binary []byte, n int, err error) {
+	binary = make([]byte, base64.RawStdEncoding.DecodedLen(len(b64)))
+        n, err = base64.StdEncoding.Decode(binary, b64)
+	if err != nil {
+		n, err = base64.RawStdEncoding.Decode(binary, b64)
+	}
+	return binary, n, err
+}
+
 // OnionAddress returns the Tor Onion Service address corresponding to a given
 // rsa.PublicKey.
 func OnionAddress(pk *rsa.PublicKey) (onion_address string, err error) {
@@ -89,6 +99,15 @@ type Platform struct {
     Name string
 }
 
+func ParseRouterSoftwareVersion(data [][]byte) (platform Platform, err error) {
+	if len(data) < 2 {
+		return platform, fmt.Errorf("Software version is too short")
+	}
+	platform.SoftwareName = string(bytes.Join(data[:len(data)-1], []byte(" ")))
+	platform.SoftwareVersion = string(data[len(data)-1])
+	return platform, err
+}
+
 func ParsePlatformEntry(platformE [][]byte) (platform Platform, err error) {
     /* XXX: lil crafty */
     var onIndexes []int
@@ -100,10 +119,11 @@ func ParsePlatformEntry(platformE [][]byte) (platform Platform, err error) {
     if len(onIndexes) != 1 {
 	return platform, fmt.Errorf("Platform string contains not exacly one \" on \"")
     }
-    platform = Platform{Name: string(bytes.Join(platformE[onIndexes[0]+1:], []byte(" "))),
-			SoftwareName: string(bytes.Join(platformE[:onIndexes[0]-1], []byte(" "))),
-			SoftwareVersion: string(platformE[onIndexes[0]-1]),
-			      }
+    platform, err = ParseRouterSoftwareVersion(platformE[:onIndexes[0]])
+    if err != nil {
+	return platform, nil
+    }
+    platform.Name = string(bytes.Join(platformE[onIndexes[0]+1:], []byte(" ")))
     return platform, err
 }
 
@@ -119,6 +139,24 @@ type Exit6Policy struct {
 	Accept	bool
 	PortList	[]string
 }
+
+func ParsePolicy(entry [][]byte) (policy Exit6Policy, err error) {
+	switch string(entry[0]) {
+		case "reject":
+			policy.Accept = false
+		case "accept":
+			policy.Accept = true
+		default:
+			return policy, fmt.Errorf("Policy is not recognized")
+	}
+
+	for _, port := range entry[1:] {
+		policy.PortList =
+			append(policy.PortList, string(port))
+	}
+	return policy, err
+}
+
 
 type Bandwidth struct {
 	Average uint64
@@ -142,8 +180,8 @@ func ParseBandwidthEntry(bandwidthE [][]byte) (bandwidth Bandwidth, err error) {
 	if err != nil {
 		return bandwidth, err
 	}
-	bandwidth = Bandwidth{average, burst, observed}
-	return
+	bandwidth = Bandwidth{Average: average, Burst: burst, Observed: observed}
+	return bandwidth, err
 }
 const Ed25519PubkeySize		= 32
 const Ed25519SignatureSize	= 64
