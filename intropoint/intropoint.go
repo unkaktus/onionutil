@@ -31,37 +31,37 @@ type IntroductionPoint struct {
 func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
     docs, _rest := torparse.ParseTorDocument([]byte(ips_str))
     for _, doc := range docs {
-        if _, ok := doc.Entries["introduction-point"]; !ok {
+        if _, ok := doc["introduction-point"]; !ok {
             log.Printf("Got a document that is not an introduction point")
             continue
         }
         var ip IntroductionPoint
 
-        identity, err := onionutil.Base32Decode(string(doc.Entries["introduction-point"].FJoined()))
+        identity, err := onionutil.Base32Decode(string(doc["introduction-point"].FJoined()))
         if err != nil {
             log.Printf("The IP has invalid idenity. Skipping")
             continue
         }
         ip.Identity = identity
 
-        ip.InternetAddress = net.ParseIP(string(doc.Entries["ip-address"].FJoined()))
+        ip.InternetAddress = net.ParseIP(string(doc["ip-address"].FJoined()))
         if ip.InternetAddress == nil {
             log.Printf("Not a valid Internet address for an IntroPoint")
             continue
         }
-        onion_port, err := onionutil.InetPortFromByteString(doc.Entries["onion-port"].FJoined())
+        onion_port, err := onionutil.InetPortFromByteString(doc["onion-port"].FJoined())
         if err != nil {
             log.Printf("Error parsing IP port: %v", err)
             continue
         }
         ip.OnionPort = onion_port
-        onion_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["onion-key"].FJoined())
+        onion_key, _, err := pkcs1.DecodePublicKeyDER(doc["onion-key"].FJoined())
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue
         }
         ip.OnionKey = onion_key
-        service_key, _, err := pkcs1.DecodePublicKeyDER(doc.Entries["service-key"].FJoined())
+        service_key, _, err := pkcs1.DecodePublicKeyDER(doc["service-key"].FJoined())
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue
