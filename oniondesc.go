@@ -35,9 +35,10 @@ type OnionDescriptor struct {
 }
 
 // Initialize defaults
-func ComposeDescriptor(perm_pk *rsa.PublicKey,
+func NewOnionDescriptor(perm_pk *rsa.PublicKey,
                        ips []IntroductionPoint, replica int,
-                       ) (desc OnionDescriptor) {
+                       ) (desc *OnionDescriptor) {
+    desc = new(OnionDescriptor)
     /* v hardcoded values */
     desc.Version = 2
     desc.ProtocolVersions = []int{2, 3}
@@ -98,59 +99,53 @@ func ParseOnionDescriptors(descs_str string) (descs []OnionDescriptor, rest stri
     return descs, rest
 }
 
-func MakeDescriptorBody(desc OnionDescriptor) (desc_body string) {
+func (desc OnionDescriptor) Body() []byte {
+    w := new(bytes.Buffer)
     perm_pk_der, err := pkcs1.EncodePublicKeyDER(desc.PermanentKey)
     if err != nil {
         log.Fatalf("Cannot encode public key into DER sequence.")
     }
-    desc_body += fmt.Sprintf("rendezvous-service-descriptor %s\n",
-                              Base32Encode(desc.DescId))
-    desc_body += fmt.Sprintf("version %d\n",
-                              desc.Version)
-    desc_body += fmt.Sprintf("permanent-key\n%s\n",
+    fmt.Fprintf(w, "rendezvous-service-descriptor %s\n", Base32Encode(desc.DescId))
+    fmt.Fprintf(w, "version %d\n", desc.Version)
+    fmt.Fprintf(w, "permanent-key\n%s",
                               pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY",
                                                               Bytes: perm_pk_der}))
-    desc_body += fmt.Sprintf("secret-id-part %s\n",
+    fmt.Fprintf(w, "secret-id-part %s\n",
                               Base32Encode(desc.SecretIdPart))
-    desc_body += fmt.Sprintf("publication-time %v\n",
+    fmt.Fprintf(w, "publication-time %v\n",
                               desc.PublicationTime.Format("2006-01-02 15:04:05"))
     var protoversions_strs []string
     for _, v := range desc.ProtocolVersions {
         protoversions_strs = append(protoversions_strs, fmt.Sprintf("%d", v))
     }
-    desc_body += fmt.Sprintf("protocol-versions %v\n",
+    fmt.Fprintf(w, "protocol-versions %v\n",
                               strings.Join(protoversions_strs, ","))
     if len(desc.IntroductionPoints) != 0 {
         intro_block := MakeIntroPointsDocument(desc.IntroductionPoints)
-        desc_body += fmt.Sprintf("introduction-points\n%s\n",
+        fmt.Fprintf(w, "introduction-points\n%s",
                                   pem.EncodeToMemory(&pem.Block{Type: "MESSAGE",
                                         Bytes: []byte(intro_block)}))
     }
-    desc_body += fmt.Sprintf("signature\n",)
-
-    // Sanitize double NL if any XXX: is it fine?
-    desc_body = strings.Replace(desc_body, "\n\n", "\n", -1)
-
-    return desc_body
+    fmt.Fprintf(w, "signature\n")
+    return w.Bytes()
 }
 
-func SignDescriptor(desc_body string, doSign func(digest []byte) ([]byte, error)) (signed_desc string) {
-    desc_digest := CalcDescriptorBodyDigest(desc_body)
-    signature, err := doSign(desc_digest)
+func (desc *OnionDescriptor) Sign(doSign func(digest []byte) ([]byte, error)) (signedDesc []byte) {
+    descBody := desc.Body()
+    descDigest := CalcDescriptorBodyDigest(descBody)
+    signature, err := doSign(descDigest)
     //signature, err := keycity.SignPlease(front_onion, desc_digest)
     //signature, err := signDescriptorBodyDigest(desc_digest, front_onion)
     if err != nil {
         log.Fatalf("Cannot sign: %v.", err)
     }
-    signed_desc = MakeSignedDescriptor(desc_body, signature)
-    return signed_desc
+    signedDesc = append(descBody, encodeSignature(signature)...)
+    return signedDesc
 }
 
-func MakeSignedDescriptor(desc_body string, signature []byte) (signed_desc string){
-    pem_signature := pem.EncodeToMemory(&pem.Block{Type: "SIGNATURE",
+func encodeSignature(signature []byte) []byte {
+    return pem.EncodeToMemory(&pem.Block{Type: "SIGNATURE",
                                                    Bytes: signature})
-    signed_desc = fmt.Sprintf("%s%s", desc_body, pem_signature)
-    return signed_desc
 }
 
 /* TODO: there is no `descriptor-cookie` now (because we need IP list encryption etc) */
@@ -176,22 +171,6 @@ func calcDescriptorId(perm_id, secret_id []byte) (desc_id []byte){
     desc_id_bin := desc_id_h.Sum(nil)
     return desc_id_bin
 }
-func CalcDescriptorBodyDigest(desc_body string) (digest []byte) {
-    h := sha1.New()
-    h.Write([]byte(desc_body))
-    digest = h.Sum(nil)
-    return digest
+func CalcDescriptorBodyDigest(descBody []byte) (digest []byte) {
+    return Hash(descBody)
 }
-
-/*
-func verifyDescSignature(desc *Descriptor) (err error) {
-    desc_body := MakeDescriptorBody(desc)
-    desc_digest := CalcDescriptorBodyDigest(desc_body)
-    err = rsa.VerifyPKCS1v15(desc.PermanentKey, 0, desc_digest, desc.Signature)
-    return err
-    /*
-    return errors.New("Reassembled descriptor signature verification failed (%v).",
-                        err)
-    
-}
-*/
