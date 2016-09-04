@@ -47,7 +47,7 @@ func RSAPubkeyHash(pk *rsa.PublicKey) (derHash []byte, err error) {
     return derHash, err
 }
 
-func CalcPermanentId(pk *rsa.PublicKey) (permId []byte, err error) {
+func CalcPermanentID(pk *rsa.PublicKey) (permId []byte, err error) {
     derHash, err := RSAPubkeyHash(pk)
     if err != nil {
 	return
@@ -69,13 +69,13 @@ func Base32Decode(b32 string) (binary []byte, err error) {
 
 // OnionAddress returns the Tor Onion Service address corresponding to a given
 // rsa.PublicKey.
-func OnionAddress(pk *rsa.PublicKey) (onion_address string, err error) {
-    perm_id, err := CalcPermanentId(pk)
+func OnionAddress(pubKey *rsa.PublicKey) (onionAddress string, err error) {
+    permID, err := CalcPermanentID(pubKey)
     if err != nil {
-        return onion_address, err
+        return onionAddress, err
     }
-    onion_address = Base32Encode(perm_id)
-    return onion_address, err
+    onionAddress = Base32Encode(permID)
+    return onionAddress, err
 }
 
 func InetPortFromByteString(str []byte) (port uint16, err error) {

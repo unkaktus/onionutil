@@ -24,47 +24,45 @@ import (
 
 
 type OnionDescriptor struct {
-    DescId  []byte
-    Version int
-    PermanentKey    *rsa.PublicKey
-    SecretIdPart    []byte
-    PublicationTime time.Time
-    ProtocolVersions    []int
-    IntroductionPoints  []IntroductionPoint
-    Signature   []byte
+    DescID		[]byte
+    Version		int
+    PermanentKey	*rsa.PublicKey
+    SecretIDPart	[]byte
+    PublicationTime	time.Time
+    ProtocolVersions	[]int
+    IntroductionPoints	[]IntroductionPoint
+    Signature		[]byte
 }
 
 // Initialize defaults
-func NewOnionDescriptor(perm_pk *rsa.PublicKey,
-                       ips []IntroductionPoint, replica int,
-                       ) (desc *OnionDescriptor) {
+func NewOnionDescriptor(permPubKey *rsa.PublicKey, ips []IntroductionPoint, replica int) (desc *OnionDescriptor) {
     desc = new(OnionDescriptor)
     /* v hardcoded values */
     desc.Version = 2
     desc.ProtocolVersions = []int{2, 3}
     /* ^ hardcoded values */
-    current_time := time.Now().Unix()
-    rounded_current_time := current_time-current_time%(60*60)
-    desc.PublicationTime = time.Unix(rounded_current_time, 0)
-    desc.PermanentKey = perm_pk
-    perm_id, _ := CalcPermanentId(desc.PermanentKey)
-    desc.SecretIdPart = calcSecretId(perm_id, current_time, byte(replica))
-    desc.DescId = calcDescriptorId(perm_id, desc.SecretIdPart)
+    currentTime := time.Now().Unix()
+    roundedCurrentTime := currentTime-currentTime%(60*60)
+    desc.PublicationTime = time.Unix(roundedCurrentTime, 0)
+    desc.PermanentKey = permPubKey
+    permID, _ := CalcPermanentID(desc.PermanentKey)
+    desc.SecretIDPart = calcSecretID(permID, currentTime, byte(replica))
+    desc.DescID = calcDescriptorID(permID, desc.SecretIDPart)
     desc.IntroductionPoints = ips
     return desc
 }
 
 
 // TODO return a pointer to descs not descs themselves?
-func ParseOnionDescriptors(descs_str string) (descs []OnionDescriptor, rest string) {
-    docs, _rest := torparse.ParseTorDocument([]byte(descs_str))
+func ParseOnionDescriptors(descsData []byte) (descs []OnionDescriptor, rest []byte) {
+    docs, rest := torparse.ParseTorDocument(descsData)
     for _, doc := range docs {
         var desc OnionDescriptor
         if _, ok := doc["rendezvous-service-descriptor"]; !ok {
             log.Printf("Got a document that is not an onion service")
             continue
         } else {
-	    desc.DescId = doc["rendezvous-service-descriptor"].FJoined()
+	    desc.DescID = doc["rendezvous-service-descriptor"].FJoined()
 	}
 
         version, err := strconv.ParseInt(string(doc["version"].FJoined()), 10, 0)
@@ -74,12 +72,12 @@ func ParseOnionDescriptors(descs_str string) (descs []OnionDescriptor, rest stri
         }
         desc.Version = int(version)
 
-        permanent_key, _, err := pkcs1.DecodePublicKeyDER(doc["permanent-key"].FJoined())
+        permanentKey, _, err := pkcs1.DecodePublicKeyDER(doc["permanent-key"].FJoined())
         if err != nil {
             log.Printf("Decoding DER sequence of PulicKey has failed: %v.", err)
             continue
         }
-        desc.PermanentKey = permanent_key
+        desc.PermanentKey = permanentKey
         //if (doc.Fields["introduction-points"]) {
             desc.IntroductionPoints, _ = ParseIntroPoints(
                                         string(doc["introduction-points"].FJoined()))
@@ -95,36 +93,35 @@ func ParseOnionDescriptors(descs_str string) (descs []OnionDescriptor, rest stri
         descs = append(descs, desc)
     }
 
-    rest = string(_rest)
     return descs, rest
 }
 
 func (desc OnionDescriptor) Body() []byte {
     w := new(bytes.Buffer)
-    perm_pk_der, err := pkcs1.EncodePublicKeyDER(desc.PermanentKey)
+    permPubKeyDER, err := pkcs1.EncodePublicKeyDER(desc.PermanentKey)
     if err != nil {
         log.Fatalf("Cannot encode public key into DER sequence.")
     }
-    fmt.Fprintf(w, "rendezvous-service-descriptor %s\n", Base32Encode(desc.DescId))
+    fmt.Fprintf(w, "rendezvous-service-descriptor %s\n", Base32Encode(desc.DescID))
     fmt.Fprintf(w, "version %d\n", desc.Version)
     fmt.Fprintf(w, "permanent-key\n%s",
                               pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY",
-                                                              Bytes: perm_pk_der}))
+                                                              Bytes: permPubKeyDER}))
     fmt.Fprintf(w, "secret-id-part %s\n",
-                              Base32Encode(desc.SecretIdPart))
+                              Base32Encode(desc.SecretIDPart))
     fmt.Fprintf(w, "publication-time %v\n",
                               desc.PublicationTime.Format("2006-01-02 15:04:05"))
-    var protoversions_strs []string
+    var protoversions []string
     for _, v := range desc.ProtocolVersions {
-        protoversions_strs = append(protoversions_strs, fmt.Sprintf("%d", v))
+        protoversions = append(protoversions, fmt.Sprintf("%d", v))
     }
     fmt.Fprintf(w, "protocol-versions %v\n",
-                              strings.Join(protoversions_strs, ","))
+                              strings.Join(protoversions, ","))
     if len(desc.IntroductionPoints) != 0 {
-        intro_block := MakeIntroPointsDocument(desc.IntroductionPoints)
+        introBlock := MakeIntroPointsDocument(desc.IntroductionPoints)
         fmt.Fprintf(w, "introduction-points\n%s",
                                   pem.EncodeToMemory(&pem.Block{Type: "MESSAGE",
-                                        Bytes: []byte(intro_block)}))
+                                        Bytes: []byte(introBlock)}))
     }
     fmt.Fprintf(w, "signature\n")
     return w.Bytes()
@@ -150,26 +147,26 @@ func encodeSignature(signature []byte) []byte {
 
 /* TODO: there is no `descriptor-cookie` now (because we need IP list encryption etc) */
 
-func calcSecretId(perm_id []byte, current_time int64, replica byte) (secret_id []byte) {
-    perm_id_byte := uint32(perm_id[0])
+func calcSecretID(permID []byte, currentTime int64, replica byte) (secretID []byte) {
+    permIDByte := uint32(permID[0])
 
-    time_period_int := (uint32(current_time) + perm_id_byte*86400/256)/86400
-    var time_period = new(bytes.Buffer)
-    binary.Write(time_period, binary.BigEndian, time_period_int)
+    timePeriodInt := (uint32(currentTime) + permIDByte*86400/256)/86400
+    var timePeriod = new(bytes.Buffer)
+    binary.Write(timePeriod, binary.BigEndian, timePeriodInt)
 
-    secret_id_h := sha1.New()
-    secret_id_h.Write(time_period.Bytes())
-    secret_id_h.Write([]byte{replica})
-    secret_id = secret_id_h.Sum(nil)
-    return secret_id
+    h := sha1.New()
+    h.Write(timePeriod.Bytes())
+    h.Write([]byte{replica})
+    secretID = h.Sum(nil)
+    return secretID
 }
 
-func calcDescriptorId(perm_id, secret_id []byte) (desc_id []byte){
-    desc_id_h := sha1.New()
-    desc_id_h.Write(perm_id)
-    desc_id_h.Write(secret_id)
-    desc_id_bin := desc_id_h.Sum(nil)
-    return desc_id_bin
+func calcDescriptorID(permID, secretID []byte) (descID []byte){
+    h := sha1.New()
+    h.Write(permID)
+    h.Write(secretID)
+    descID = h.Sum(nil)
+    return descID
 }
 func CalcDescriptorBodyDigest(descBody []byte) (digest []byte) {
     return Hash(descBody)
