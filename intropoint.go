@@ -8,7 +8,7 @@
 package onionutil
 
 import (
-    "strings"
+    "bytes"
     "log"
     "net"
     "fmt"
@@ -74,44 +74,43 @@ func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
 }
 
 
-
-
-func TearApartIntroPoints(ips_str string) (ips []string) {
-    title := "introduction-point"
-    ips = strings.Split(ips_str, title)[1:]
-    for index,ip := range ips {
-        ips[index] = strings.Trim(title + ip, "\n")
+// XXX: This should be gone since it just a bunch of TorDocuments
+func TearApartIntroPoints(ipsEncoded []byte) (ips [][]byte) {
+    title := []byte("introduction-point")
+    ips = bytes.Split(ipsEncoded, title)[1:]
+    for index, ip := range ips {
+        ips[index] = bytes.Trim(append(title, ip...), "\n")
     }
     return ips
 }
 
-func MakeIntroPointDocument(ip IntroductionPoint) (ip_str string) {
-    ip_str += fmt.Sprintf("introduction-point %v\n", Base32Encode(ip.Identity))
-    ip_str += fmt.Sprintf("ip-address %v\n", ip.InternetAddress)
-    ip_str += fmt.Sprintf("onion-port %v\n", ip.OnionPort)
-    onion_key_der, err := pkcs1.EncodePublicKeyDER(ip.OnionKey)
+func (ip IntroductionPoint) Encode() (encodedIP []byte) {
+    w := new(bytes.Buffer)
+    fmt.Fprintf(w, "introduction-point %v\n", Base32Encode(ip.Identity))
+    fmt.Fprintf(w, "ip-address %v\n", ip.InternetAddress)
+    fmt.Fprintf(w, "onion-port %v\n", ip.OnionPort)
+    onionKeyDER, err := pkcs1.EncodePublicKeyDER(ip.OnionKey)
     if err != nil {
         log.Fatalf("Cannot encode public key into DER sequence.")
     }
-    onion_key_pem := pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY",
-                                                   Bytes: onion_key_der})
-    ip_str += fmt.Sprintf("onion-key\n%s", onion_key_pem)
-    service_key_der, err := pkcs1.EncodePublicKeyDER(ip.ServiceKey)
+    onionKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY",
+                                                   Bytes: onionKeyDER})
+    fmt.Fprintf(w, "onion-key\n%s", onionKeyPEM)
+    serviceKeyDER, err := pkcs1.EncodePublicKeyDER(ip.ServiceKey)
     if err != nil {
         log.Fatalf("Cannot encode public key into DER sequence.")
     }
-    service_key_pem := pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY",
-                                                   Bytes: service_key_der})
-    ip_str += fmt.Sprintf("service-key\n%s", service_key_pem)
+    serviceKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY",
+                                                   Bytes: serviceKeyDER})
+    fmt.Fprintf(w, "service-key\n%s", serviceKeyPEM)
 
-    return ip_str
+    return w.Bytes()
 }
 
-func MakeIntroPointsDocument(ips []IntroductionPoint) (ips_str string) {
+func MakeIntroPointsDocument(ips []IntroductionPoint) (ipsDoc []byte) {
     for _, ip := range ips {
-        ip_str := MakeIntroPointDocument(ip)
-        ips_str += ip_str
+        ipsDoc = append(ipsDoc, ip.Encode()...)
     }
-    return ips_str
+    return ipsDoc
 }
 
