@@ -5,7 +5,7 @@
 // commons "cc0" public domain dedication. See LICENSE or
 // <http://creativecommons.org/publicdomain/zero/1.0/> for full details.
 
-package intropoint
+package onionutil
 
 import (
     "strings"
@@ -14,9 +14,8 @@ import (
     "fmt"
     "encoding/pem"
     "crypto/rsa"
-    "onionutil"
-    "onionutil/torparse"
-    "onionutil/pkcs1"
+    "github.com/nogoegst/onionutil/torparse"
+    "github.com/nogoegst/onionutil/pkcs1"
 )
 
 type IntroductionPoint struct {
@@ -37,7 +36,7 @@ func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
         }
         var ip IntroductionPoint
 
-        identity, err := onionutil.Base32Decode(string(doc["introduction-point"].FJoined()))
+        identity, err := Base32Decode(string(doc["introduction-point"].FJoined()))
         if err != nil {
             log.Printf("The IP has invalid idenity. Skipping")
             continue
@@ -49,7 +48,7 @@ func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
             log.Printf("Not a valid Internet address for an IntroPoint")
             continue
         }
-        onion_port, err := onionutil.InetPortFromByteString(doc["onion-port"].FJoined())
+        onion_port, err := InetPortFromByteString(doc["onion-port"].FJoined())
         if err != nil {
             log.Printf("Error parsing IP port: %v", err)
             continue
@@ -87,7 +86,7 @@ func TearApartIntroPoints(ips_str string) (ips []string) {
 }
 
 func MakeIntroPointDocument(ip IntroductionPoint) (ip_str string) {
-    ip_str += fmt.Sprintf("introduction-point %v\n", onionutil.Base32Encode(ip.Identity))
+    ip_str += fmt.Sprintf("introduction-point %v\n", Base32Encode(ip.Identity))
     ip_str += fmt.Sprintf("ip-address %v\n", ip.InternetAddress)
     ip_str += fmt.Sprintf("onion-port %v\n", ip.OnionPort)
     onion_key_der, err := pkcs1.EncodePublicKeyDER(ip.OnionKey)

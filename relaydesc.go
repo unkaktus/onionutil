@@ -5,12 +5,11 @@
 // commons "cc0" public domain dedication. See LICENSE or
 // <http://creativecommons.org/publicdomain/zero/1.0/> for full details.
 
-package relaydesc
+package onionutil
 
 import (
-    "onionutil"
-    "onionutil/torparse"
-    "onionutil/pkcs1"
+    "github.com/nogoegst/onionutil/torparse"
+    "github.com/nogoegst/onionutil/pkcs1"
     "crypto/rsa"
     "encoding/base64"
     "strings"
@@ -33,10 +32,10 @@ type Descriptor struct {
     DirPort	uint16
     ORAddrs	[]net.TCPAddr
 
-    IdentityEd25519	*onionutil.Certificate
-    MasterKeyEd25519	onionutil.Ed25519Pubkey
-    Bandwidth	onionutil.Bandwidth
-    Platform	onionutil.Platform
+    IdentityEd25519	*Certificate
+    MasterKeyEd25519	Ed25519Pubkey
+    Bandwidth	Bandwidth
+    Platform	Platform
     Published	time.Time
     Fingerprint	string
     Hibernating	bool
@@ -47,15 +46,15 @@ type Descriptor struct {
     SigningKey	*rsa.PublicKey
     HSDirVersions	[]uint8
     Contact	string
-    NTorOnionKey onionutil.Curve25519Pubkey
-    NTorOnionKeyCrossCert *onionutil.Certificate
-    ExitPolicy	onionutil.ExitPolicy
-    Exit6Policy	*onionutil.Exit6Policy
+    NTorOnionKey Curve25519Pubkey
+    NTorOnionKeyCrossCert *Certificate
+    ExitPolicy	ExitPolicy
+    Exit6Policy	*Exit6Policy
     CachesExtraInfo	bool
     AllowSingleHopExits	bool
 
-    RouterSigEd25519	onionutil.Ed25519Signature
-    RouterSignature	onionutil.RSASignature
+    RouterSigEd25519	Ed25519Signature
+    RouterSignature	RSASignature
 }
 
 // TODO return a pointer to descs not descs themselves?
@@ -74,13 +73,13 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		routerF := value[0]
 		desc.Nickname = string(routerF[0])
 		desc.InternetAddress = net.ParseIP(string(routerF[1]))
-		ORPort, err := onionutil.InetPortFromByteString(routerF[2])
+		ORPort, err := InetPortFromByteString(routerF[2])
 		if err != nil { goto Broken }
 		desc.ORPort = ORPort
-		SOCKSPort, err := onionutil.InetPortFromByteString(routerF[3])
+		SOCKSPort, err := InetPortFromByteString(routerF[3])
 		if err != nil { goto Broken }
 		desc.SOCKSPort = SOCKSPort
-		DirPort, err := onionutil.InetPortFromByteString(routerF[4])
+		DirPort, err := InetPortFromByteString(routerF[4])
 		if err != nil { goto Broken }
 		desc.DirPort = DirPort
 		desc.ORAddrs = append(desc.ORAddrs,
@@ -95,7 +94,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if len(value[0]) <= 0 {
 			goto Broken
 		}
-		cert, err := onionutil.ParseCertFromBytes(value[0][0])
+		cert, err := ParseCertFromBytes(value[0][0])
 		if err != nil {
 			goto Broken
 		}
@@ -106,16 +105,16 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		var masterKey = make([]byte, onionutil.Ed25519PubkeySize)
+		var masterKey = make([]byte, Ed25519PubkeySize)
 		n, err := base64.RawStdEncoding.Decode(masterKey, value.FJoined())
 		if err != nil {
 			goto Broken
 		}
-		if n != onionutil.Ed25519PubkeySize {
+		if n != Ed25519PubkeySize {
 			goto Broken
 		}
 		signedWithEd25519Key, ok :=
-		desc.IdentityEd25519.Extensions[onionutil.ExtType(0x04)]
+		desc.IdentityEd25519.Extensions[ExtType(0x04)]
 		if ok {
 			if !reflect.DeepEqual(masterKey, signedWithEd25519Key.Data) {
 			goto Broken
@@ -128,7 +127,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.ExactlyOnce(value) {
 			goto Broken
 		}
-		bandwidth, err := onionutil.ParseBandwidthEntry(value[0])
+		bandwidth, err := ParseBandwidthEntry(value[0])
 		if err != nil {
 			goto Broken
 		}
@@ -139,7 +138,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		platform, err := onionutil.ParsePlatformEntry(value[0])
+		platform, err := ParsePlatformEntry(value[0])
 		if err != nil {
 			log.Printf("platerr: %v", err)
 			goto Broken
@@ -153,7 +152,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.ExactlyOnce(value) {
 			goto Broken
 		}
-		published, err := time.Parse(onionutil.PublicationTimeFormat,
+		published, err := time.Parse(PublicationTimeFormat,
 					string(value.FJoined()))
 		if err != nil {
 			goto Broken
@@ -220,13 +219,13 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 
 	if value, ok := doc["onion-key-crosscert"]; ok {
 		crosscert := value.FJoined()
-		identityHash, err := onionutil.RSAPubkeyHash(desc.SigningKey)
+		identityHash, err := RSAPubkeyHash(desc.SigningKey)
 		if err != nil {
 			goto Broken
 		}
 		crosscertData := append(identityHash,
 			desc.MasterKeyEd25519[:]...)
-		//hashed := onionutil.Hash(crosscertData)
+		//hashed := Hash(crosscertData)
 		/* XXX(dir-spec): Whoo-sch! We do sign (arbitrary long) *
 		/* data without hashing it. Seriouly? */
 		if err := rsa.VerifyPKCS1v15(desc.OnionKey, 0, crosscertData, crosscert); err != nil {
@@ -266,7 +265,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 			goto Broken
 		}
 		/* XXX: why do we need +1 here? */
-		var NTorOnionKey = make([]byte, onionutil.NTorOnionKeySize+1)
+		var NTorOnionKey = make([]byte, NTorOnionKeySize+1)
 		n, err := base64.StdEncoding.Decode(NTorOnionKey,
 						    value.FJoined())
 		if err != nil {
@@ -276,7 +275,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 				goto Broken
 			}
 		}
-		if n != onionutil.NTorOnionKeySize {
+		if n != NTorOnionKeySize {
 			goto Broken
 		}
 		copy(desc.NTorOnionKey[:], NTorOnionKey)
@@ -289,7 +288,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(value) {
 			goto Broken
 		}
-		ntorOnionKeyCrossCert, err := onionutil.ParseCertFromBytes(value[0][1])
+		ntorOnionKeyCrossCert, err := ParseCertFromBytes(value[0][1])
 		if err != nil {
 			goto Broken
 		}
@@ -328,7 +327,7 @@ func ParseServerDescriptors(descs_str []byte) (descs []Descriptor, rest string) 
 		if !torparse.AtMostOnce(entries) {
 			goto Broken
 		}
-		var exit6Policy onionutil.Exit6Policy
+		var exit6Policy Exit6Policy
 		switch string(entries[0][0]) {
 			case "reject":
 				exit6Policy.Accept = false

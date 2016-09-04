@@ -19,9 +19,9 @@ import (
     "bytes"
     "strconv"
     "reflect"
-    "onionutil/pkcs1"
+    "github.com/nogoegst/onionutil/pkcs1"
 
-    "onionutil/torparse"
+    "github.com/nogoegst/onionutil/torparse"
 )
 
 

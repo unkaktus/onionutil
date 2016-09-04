@@ -5,7 +5,7 @@
 // commons "cc0" public domain dedication. See LICENSE or
 // <http://creativecommons.org/publicdomain/zero/1.0/> for full details.
 
-package oniondesc
+package onionutil
 
 import (
     "fmt"
@@ -17,10 +17,8 @@ import (
     "strings"
     "encoding/binary"
     "encoding/pem"
-    "onionutil"
-    "onionutil/torparse"
-    "onionutil/intropoint"
-    "onionutil/pkcs1"
+    "github.com/nogoegst/onionutil/torparse"
+    "github.com/nogoegst/onionutil/pkcs1"
     "log"
 )
 
@@ -32,13 +30,13 @@ type OnionDescriptor struct {
     SecretIdPart    []byte
     PublicationTime time.Time
     ProtocolVersions    []int
-    IntroductionPoints  []intropoint.IntroductionPoint
+    IntroductionPoints  []IntroductionPoint
     Signature   []byte
 }
 
 // Initialize defaults
 func ComposeDescriptor(perm_pk *rsa.PublicKey,
-                       ips []intropoint.IntroductionPoint, replica int,
+                       ips []IntroductionPoint, replica int,
                        ) (desc OnionDescriptor) {
     /* v hardcoded values */
     desc.Version = 2
@@ -48,7 +46,7 @@ func ComposeDescriptor(perm_pk *rsa.PublicKey,
     rounded_current_time := current_time-current_time%(60*60)
     desc.PublicationTime = time.Unix(rounded_current_time, 0)
     desc.PermanentKey = perm_pk
-    perm_id, _ := onionutil.CalcPermanentId(desc.PermanentKey)
+    perm_id, _ := CalcPermanentId(desc.PermanentKey)
     desc.SecretIdPart = calcSecretId(perm_id, current_time, byte(replica))
     desc.DescId = calcDescriptorId(perm_id, desc.SecretIdPart)
     desc.IntroductionPoints = ips
@@ -82,7 +80,7 @@ func ParseOnionDescriptors(descs_str string) (descs []OnionDescriptor, rest stri
         }
         desc.PermanentKey = permanent_key
         //if (doc.Fields["introduction-points"]) {
-            desc.IntroductionPoints, _ = intropoint.ParseIntroPoints(
+            desc.IntroductionPoints, _ = ParseIntroPoints(
                                         string(doc["introduction-points"].FJoined()))
         //}
         if len(doc["signature"][0]) < 1 {
@@ -106,14 +104,14 @@ func MakeDescriptorBody(desc OnionDescriptor) (desc_body string) {
         log.Fatalf("Cannot encode public key into DER sequence.")
     }
     desc_body += fmt.Sprintf("rendezvous-service-descriptor %s\n",
-                              onionutil.Base32Encode(desc.DescId))
+                              Base32Encode(desc.DescId))
     desc_body += fmt.Sprintf("version %d\n",
                               desc.Version)
     desc_body += fmt.Sprintf("permanent-key\n%s\n",
                               pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY",
                                                               Bytes: perm_pk_der}))
     desc_body += fmt.Sprintf("secret-id-part %s\n",
-                              onionutil.Base32Encode(desc.SecretIdPart))
+                              Base32Encode(desc.SecretIdPart))
     desc_body += fmt.Sprintf("publication-time %v\n",
                               desc.PublicationTime.Format("2006-01-02 15:04:05"))
     var protoversions_strs []string
@@ -123,7 +121,7 @@ func MakeDescriptorBody(desc OnionDescriptor) (desc_body string) {
     desc_body += fmt.Sprintf("protocol-versions %v\n",
                               strings.Join(protoversions_strs, ","))
     if len(desc.IntroductionPoints) != 0 {
-        intro_block := intropoint.MakeIntroPointsDocument(desc.IntroductionPoints)
+        intro_block := MakeIntroPointsDocument(desc.IntroductionPoints)
         desc_body += fmt.Sprintf("introduction-points\n%s\n",
                                   pem.EncodeToMemory(&pem.Block{Type: "MESSAGE",
                                         Bytes: []byte(intro_block)}))
