@@ -7,7 +7,7 @@
 
 package onionutil
 
-import(
+import (
 	"io"
 
 	"github.com/codahale/blake2"
@@ -17,9 +17,9 @@ import(
 
 var (
 	iterationsPBKDF2 = 100000
-	keysizePBKDF2 = 64
-	saltPBKDF2, _ = Base32Decode("zx6ebetpg3dwtwhdcfc4wuqa5wnms2z4auhkpf4u725mfe5w6eei42cwvd2d7cvcl7l5sop7opcmkbvsy5snui3xv54couyihhrce6i=")
-	saltSHAKE, _ = Base32Decode("rsmsb56wbadli3w5zfdt4gs4nqjnwotmj7jwl4md7mowttptk6bkoh6miuo4hrv76plmamvpkmhjiogxjdyveys3lq3fxf3s6gisgsy=")
+	keysizePBKDF2    = 64
+	saltPBKDF2, _    = Base32Decode("zx6ebetpg3dwtwhdcfc4wuqa5wnms2z4auhkpf4u725mfe5w6eei42cwvd2d7cvcl7l5sop7opcmkbvsy5snui3xv54couyihhrce6i=")
+	saltSHAKE, _     = Base32Decode("rsmsb56wbadli3w5zfdt4gs4nqjnwotmj7jwl4md7mowttptk6bkoh6miuo4hrv76plmamvpkmhjiogxjdyveys3lq3fxf3s6gisgsy=")
 )
 
 func KeystreamReader(passphrase []byte, info []byte) io.Reader {
@@ -33,4 +33,3 @@ func KeystreamReader(passphrase []byte, info []byte) io.Reader {
 
 	return shakeHash
 }
-
