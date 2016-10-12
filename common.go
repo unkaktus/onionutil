@@ -9,6 +9,7 @@ package onionutil
 
 import (
     "fmt"
+    "io"
     "crypto"
     "crypto/rsa"
     "crypto/sha1"
@@ -76,6 +77,16 @@ func OnionAddress(pubKey *rsa.PublicKey) (onionAddress string, err error) {
     }
     onionAddress = Base32Encode(permID)
     return onionAddress, err
+}
+
+// Generate current onion key
+func GenerateOnionKey(rand io.Reader) (crypto.PrivateKey, error) {
+	return GenerateLegacyOnionKey(rand)
+}
+
+// Generate RSA-1024 key
+func GenerateLegacyOnionKey(rand io.Reader) (crypto.PrivateKey, error) {
+	return rsa.GenerateKey(rand, 1024)
 }
 
 func InetPortFromByteString(str []byte) (port uint16, err error) {
