@@ -41,9 +41,9 @@ func (entries TorEntries) FJoined() (joined []byte) {
 	return entries[0].Joined()
 }
 
-var pemStart = []byte("-----BEGIN ")
 
 func ParseOutNextField(data []byte) (field string, content TorEntry, rest []byte, err error) {
+	pemStart := []byte("-----BEGIN ")
 	nl_split := bytes.SplitN(data, []byte("\n"), 2)
 	if len(nl_split) != 2 {
 		return field, content, data,
