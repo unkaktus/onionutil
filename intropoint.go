@@ -73,16 +73,6 @@ func ParseIntroPoints(ips_str []byte) (ips []IntroductionPoint, rest string) {
 	return ips, rest
 }
 
-// XXX: This should be gone since it just a bunch of TorDocuments
-func TearApartIntroPoints(ipsEncoded []byte) (ips [][]byte) {
-	title := []byte("introduction-point")
-	ips = bytes.Split(ipsEncoded, title)[1:]
-	for index, ip := range ips {
-		ips[index] = bytes.Trim(append(title, ip...), "\n")
-	}
-	return ips
-}
-
 // XXX: replace Falalf's with graceful errors
 func (ip IntroductionPoint) Bytes() (encodedIP []byte) {
 	w := new(bytes.Buffer)
