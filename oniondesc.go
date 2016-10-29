@@ -144,6 +144,14 @@ func (desc *OnionDescriptor) Sign(doSign func(digest []byte) ([]byte, error)) (e
 	return nil
 }
 
+func (desc *OnionDescriptor) VerifySignature() (error) {
+	signature := desc.Signature
+	desc.Signature = []byte{}
+	descDigest := Hash(desc.Bytes())
+	desc.Signature = signature
+	return rsa.VerifyPKCS1v15(desc.PermanentKey, 0, descDigest, signature)
+}
+
 /* TODO: there is no `descriptor-cookie` now (because we need IP list encryption etc) */
 func calcSecretID(permID []byte, currentTime int64, replica byte) (secretID []byte) {
 	permIDByte := uint32(permID[0])
