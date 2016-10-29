@@ -27,8 +27,8 @@ type IntroductionPoint struct {
 	ServiceKey      *rsa.PublicKey
 }
 
-func ParseIntroPoints(ips_str string) (ips []IntroductionPoint, rest string) {
-	docs, _rest := torparse.ParseTorDocument([]byte(ips_str))
+func ParseIntroPoints(ips_str []byte) (ips []IntroductionPoint, rest string) {
+	docs, _rest := torparse.ParseTorDocument(ips_str)
 	for _, doc := range docs {
 		if _, ok := doc["introduction-point"]; !ok {
 			log.Printf("Got a document that is not an introduction point")
@@ -83,7 +83,8 @@ func TearApartIntroPoints(ipsEncoded []byte) (ips [][]byte) {
 	return ips
 }
 
-func (ip IntroductionPoint) Encode() (encodedIP []byte) {
+// XXX: replace Falalf's with graceful errors
+func (ip IntroductionPoint) Bytes() (encodedIP []byte) {
 	w := new(bytes.Buffer)
 	fmt.Fprintf(w, "introduction-point %v\n", Base32Encode(ip.Identity))
 	fmt.Fprintf(w, "ip-address %v\n", ip.InternetAddress)
@@ -106,9 +107,6 @@ func (ip IntroductionPoint) Encode() (encodedIP []byte) {
 	return w.Bytes()
 }
 
-func MakeIntroPointsDocument(ips []IntroductionPoint) (ipsDoc []byte) {
-	for _, ip := range ips {
-		ipsDoc = append(ipsDoc, ip.Encode()...)
-	}
-	return ipsDoc
+func (ip *IntroductionPoint) String() (string) {
+	return string(ip.Bytes())
 }
