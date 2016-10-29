@@ -134,6 +134,15 @@ func (desc *OnionDescriptor) Bytes() []byte {
 	return w.Bytes()
 }
 
+func (desc *OnionDescriptor) OnionID() (string, error) {
+	permID, err := CalcPermanentID(desc.PermanentKey)
+	if err != nil {
+		return "", fmt.Errorf("Error in calculating permanent id: %v", err)
+	}
+	onionID := Base32Encode(permID)
+	return onionID, nil
+}
+
 func (desc *OnionDescriptor) Sign(doSign func(digest []byte) ([]byte, error)) (error) {
 	descDigest := Hash(desc.Bytes())
 	signature, err := doSign(descDigest)
