@@ -10,7 +10,7 @@ package onionutil
 import (
 	"io"
 
-	"github.com/codahale/blake2"
+	"github.com/dchest/blake2b"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/sha3"
 )
@@ -23,7 +23,7 @@ var (
 )
 
 func KeystreamReader(passphrase []byte, info []byte) io.Reader {
-	hashPBKDF2 := blake2.NewBlake2B
+	hashPBKDF2 := blake2b.New512
 	secret := pbkdf2.Key(passphrase, saltPBKDF2, iterationsPBKDF2, keysizePBKDF2, hashPBKDF2)
 
 	shakeHash := sha3.NewShake256()
