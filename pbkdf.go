@@ -9,27 +9,31 @@ package onionutil
 
 import (
 	"io"
+	"encoding/hex"
 
-	"github.com/dchest/blake2b"
+	"github.com/nogoegst/blake2xb"
 	"golang.org/x/crypto/pbkdf2"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
 	iterationsPBKDF2 = 100000
 	keysizePBKDF2    = 64
-	saltPBKDF2, _    = Base32Decode("zx6ebetpg3dwtwhdcfc4wuqa5wnms2z4auhkpf4u725mfe5w6eei42cwvd2d7cvcl7l5sop7opcmkbvsy5snui3xv54couyihhrce6i=")
-	saltSHAKE, _     = Base32Decode("rsmsb56wbadli3w5zfdt4gs4nqjnwotmj7jwl4md7mowttptk6bkoh6miuo4hrv76plmamvpkmhjiogxjdyveys3lq3fxf3s6gisgsy=")
+	saltPBKDF2, _    = hex.DecodeString("8e8a1b3347da2672fa404eaa7276dee3")
+	saltXOF, _       = hex.DecodeString("313e86e72658f5c7c3ad6e1c3d397062")
 )
 
-func KeystreamReader(passphrase []byte, info []byte) io.Reader {
-	hashPBKDF2 := blake2b.New512
+func KeystreamReader(passphrase []byte, person []byte) (io.Reader, error) {
+	hashPBKDF2 := blake2xb.New512
 	secret := pbkdf2.Key(passphrase, saltPBKDF2, iterationsPBKDF2, keysizePBKDF2, hashPBKDF2)
 
-	shakeHash := sha3.NewShake256()
-	shakeHash.Write(secret)
-	shakeHash.Write(saltSHAKE)
-	shakeHash.Write(info)
+	b2xbConfig := blake2xb.NewXConfig(0)
+	b2xbConfig.Salt = saltXOF[:16]
+	b2xbConfig.Person = person[:16]
+	b2xb, err := blake2xb.NewX(nil)
+	if err != nil {
+		return nil, err
+	}
+	b2xb.Write(secret)
 
-	return shakeHash
+	return b2xb, nil
 }
