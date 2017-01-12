@@ -29,7 +29,7 @@ func KeystreamReader(passphrase []byte, person []byte) (io.Reader, error) {
 	b2xbConfig := blake2xb.NewXConfig(0)
 	b2xbConfig.Salt = saltXOF[:16]
 	b2xbConfig.Person = person[:16]
-	b2xb, err := blake2xb.NewX(nil)
+	b2xb, err := blake2xb.NewX(b2xbConfig)
 	if err != nil {
 		return nil, err
 	}
