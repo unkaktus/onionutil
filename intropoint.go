@@ -97,6 +97,6 @@ func (ip IntroductionPoint) Bytes() (encodedIP []byte) {
 	return w.Bytes()
 }
 
-func (ip *IntroductionPoint) String() (string) {
+func (ip *IntroductionPoint) String() string {
 	return string(ip.Bytes())
 }

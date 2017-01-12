@@ -8,23 +8,23 @@
 package onionutil
 
 import (
-	"io"
 	"encoding/hex"
+	"io"
 
-	"github.com/nogoegst/blake2xb"
 	"github.com/nogoegst/balloon"
+	"github.com/nogoegst/blake2xb"
 )
 
 var (
-	sCost = 1 << 23  // 8 MiB
-	tCost = 2
-	saltBalloon, _    = hex.DecodeString("8e8a1b3347da2672fa404eaa7276dee3")
-	saltXOF, _       = hex.DecodeString("313e86e72658f5c7c3ad6e1c3d397062")
+	sCost          = 1 << 23 // 8 MiB
+	tCost          = 2
+	saltBalloon, _ = hex.DecodeString("8e8a1b3347da2672fa404eaa7276dee3")
+	saltXOF, _     = hex.DecodeString("313e86e72658f5c7c3ad6e1c3d397062")
 )
 
 func KeystreamReader(passphrase []byte, person []byte) (io.Reader, error) {
 	h := blake2xb.New512()
-	secret := balloon.Balloon(h, passphrase, saltBalloon, uint64(sCost / h.Size()), uint64(tCost))
+	secret := balloon.Balloon(h, passphrase, saltBalloon, uint64(sCost/h.Size()), uint64(tCost))
 
 	b2xbConfig := blake2xb.NewXConfig(0)
 	b2xbConfig.Salt = saltXOF[:16]

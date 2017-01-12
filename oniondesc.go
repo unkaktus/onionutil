@@ -24,25 +24,25 @@ import (
 )
 
 type OnionDescriptor struct {
-	DescID             []byte
-	Version            int
-	PermanentKey       *rsa.PublicKey
-	SecretIDPart       []byte
-	PublicationTime    time.Time
-	ProtocolVersions   []int
-	IntropointsBlock   []byte
-	Signature          []byte
+	DescID           []byte
+	Version          int
+	PermanentKey     *rsa.PublicKey
+	SecretIDPart     []byte
+	PublicationTime  time.Time
+	ProtocolVersions []int
+	IntropointsBlock []byte
+	Signature        []byte
 }
 
-var(
-	MinReplica = 0
-	MaxReplica = 1
-	DescVersion = 2
+var (
+	MinReplica       = 0
+	MaxReplica       = 1
+	DescVersion      = 2
 	ProtocolVersions = []int{2, 3}
 )
 
 // Initialize defaults
-func (desc *OnionDescriptor) Update(replica int) (err error){
+func (desc *OnionDescriptor) Update(replica int) (err error) {
 	/* v hardcoded values */
 	desc.Version = DescVersion
 	desc.ProtocolVersions = ProtocolVersions
@@ -143,7 +143,7 @@ func (desc *OnionDescriptor) OnionID() (string, error) {
 	return onionID, nil
 }
 
-func (desc *OnionDescriptor) Sign(doSign func(digest []byte) ([]byte, error)) (error) {
+func (desc *OnionDescriptor) Sign(doSign func(digest []byte) ([]byte, error)) error {
 	descDigest := Hash(desc.Bytes())
 	signature, err := doSign(descDigest)
 	if err != nil {
@@ -153,7 +153,7 @@ func (desc *OnionDescriptor) Sign(doSign func(digest []byte) ([]byte, error)) (e
 	return nil
 }
 
-func (desc *OnionDescriptor) VerifySignature() (error) {
+func (desc *OnionDescriptor) VerifySignature() error {
 	signature := desc.Signature
 	desc.Signature = []byte{}
 	descDigest := Hash(desc.Bytes())
