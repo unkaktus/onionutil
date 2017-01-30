@@ -10,18 +10,15 @@ package onionutil
 import (
 	"bytes"
 	"crypto"
-	"crypto/rsa"
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/nogoegst/onionutil/pkcs1"
 	"github.com/nogoegst/onionutil/torparse"
 )
 
@@ -38,23 +35,6 @@ func Hash(data []byte) (hash []byte) {
 	hash = h.Sum(nil)
 	return hash
 }
-func RSAPubkeyHash(pk *rsa.PublicKey) (derHash []byte, err error) {
-	der, err := pkcs1.EncodePublicKeyDER(pk)
-	if err != nil {
-		return
-	}
-	derHash = Hash(der)
-	return derHash, err
-}
-
-func CalcPermanentID(pk *rsa.PublicKey) (permId []byte, err error) {
-	derHash, err := RSAPubkeyHash(pk)
-	if err != nil {
-		return
-	}
-	permId = derHash[:10]
-	return
-}
 
 /* XXX: here might be an error for new ed25519 addresses (! mod 5bits=0) */
 func Base32Encode(binary []byte) string {
@@ -65,27 +45,6 @@ func Base32Encode(binary []byte) string {
 func Base32Decode(b32 string) (binary []byte, err error) {
 	binary, err = base32.StdEncoding.DecodeString(strings.ToUpper(b32))
 	return binary, err
-}
-
-// OnionAddress returns the Tor Onion Service address corresponding to a given
-// rsa.PublicKey.
-func OnionAddress(pubKey *rsa.PublicKey) (onionAddress string, err error) {
-	permID, err := CalcPermanentID(pubKey)
-	if err != nil {
-		return onionAddress, err
-	}
-	onionAddress = Base32Encode(permID)
-	return onionAddress, err
-}
-
-// Generate current onion key
-func GenerateOnionKey(rand io.Reader) (crypto.PrivateKey, error) {
-	return GenerateLegacyOnionKey(rand)
-}
-
-// Generate RSA-1024 key
-func GenerateLegacyOnionKey(rand io.Reader) (crypto.PrivateKey, error) {
-	return rsa.GenerateKey(rand, 1024)
 }
 
 func InetPortFromByteString(str []byte) (port uint16, err error) {
