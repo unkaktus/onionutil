@@ -13,6 +13,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"io"
+	"reflect"
 
 	"github.com/nogoegst/onionutil/pkcs1"
 	"golang.org/x/crypto/ed25519"
@@ -48,9 +49,16 @@ func OnionAddress(pk crypto.PublicKey) (string, error) {
 	}
 }
 
+// Check whether onion address is a valid one.
+func OnionAddressIsValid(onionAddress string) bool {
+	v2v := OnionAddressIsValidV2(onionAddress)
+	v3v := OnionAddressIsValidV3(onionAddress)
+	return v2v || v3v
+}
+
 // v2 onion addresses
 var (
-	onionAddressLengthV2 = 10
+	OnionAddressLengthV2 = 10
 )
 
 // OnionAddress returns the Tor Onion Service address corresponding to a given
@@ -71,6 +79,18 @@ func GenerateOnionKeyV2(rand io.Reader) (crypto.PrivateKey, error) {
 		return nil, err
 	}
 	return *sk, nil
+}
+
+// Check whether onion address is a valid v2 one.
+func OnionAddressIsValidV2(onionAddress string) bool {
+	oa, err := Base32Decode(onionAddress)
+	if err != nil {
+		return false
+	}
+	if len(oa) != OnionAddressLengthV2 {
+		return false
+	}
+	return true
 }
 
 // Calculate hash (SHA1) of DER-encoded RSA public key pk.
@@ -95,30 +115,60 @@ func CalcPermanentID(pk *rsa.PublicKey) (permId []byte, err error) {
 
 // v3 onion addresses
 var (
-	onionAddressLengthV3      = 35 // 32+1+3
-	onionChecksumPrefix       = []byte(".onion checksum")
-	onionAddressVersionByteV3 = []byte{0x03}
+	OnionAddressChecksumLengthV3     = 2
+	OnionAddressVersionFieldV3       = []byte{0x03}
+	OnionAddressVersionFieldLengthV3 = 1
+	OnionAddressLengthV3             = ed25519.PublicKeySize +
+		OnionAddressVersionFieldLengthV3 +
+		OnionAddressChecksumLengthV3
+	OnionChecksumPrefix = []byte(".onion checksum")
 )
 
 // Calculate onion address v3 from public key pk.
 func OnionAddressV3(pk ed25519.PublicKey) (onionAddress string, err error) {
-	h := sha3.New256()
-	h.Write(onionChecksumPrefix)
-	h.Write([]byte(pk))
-	h.Write(onionAddressVersionByteV3)
-	chksum := h.Sum(nil)[:2]
-
-	oab := make([]byte, 0, onionAddressLengthV3)
+	chksum := OnionAddressChecksumV3([]byte(pk))
+	oab := make([]byte, 0, OnionAddressLengthV3)
 	oa := bytes.NewBuffer(oab)
 	oa.Write([]byte(pk))
 	oa.Write(chksum)
-	oa.Write(onionAddressVersionByteV3)
+	oa.Write(OnionAddressVersionFieldV3)
 	onionAddress = Base32Encode(oa.Bytes())
 	return onionAddress, err
+}
+
+// Check whether onion address is a valid v3 one.
+func OnionAddressIsValidV3(onionAddress string) bool {
+	oa, err := Base32Decode(onionAddress)
+	if err != nil {
+		return false
+	}
+	if len(oa) != OnionAddressLengthV3 {
+		return false
+	}
+	oab := bytes.NewBuffer(oa)
+	pk := oab.Next(ed25519.PublicKeySize)
+	chksum := oab.Next(OnionAddressChecksumLengthV3)
+	ver := oab.Next(OnionAddressVersionFieldLengthV3)
+	if !reflect.DeepEqual(ver, OnionAddressVersionFieldV3) {
+		return false
+	}
+	if !reflect.DeepEqual(chksum, OnionAddressChecksumV3(pk)) {
+		return false
+	}
+	return true
 }
 
 // Generate v3 onion address key (Ed25519) using rand as the entropy source
 func GenerateOnionKeyV3(rand io.Reader) (crypto.PrivateKey, error) {
 	_, sk, err := ed25519.GenerateKey(rand)
 	return sk, err
+}
+
+// Calculate onion address checksum (v3) from byte-encoded Ed25519 key
+func OnionAddressChecksumV3(pk []byte) []byte {
+	h := sha3.New256()
+	h.Write(OnionChecksumPrefix)
+	h.Write([]byte(pk))
+	h.Write(OnionAddressVersionFieldV3)
+	return h.Sum(nil)[:2]
 }
