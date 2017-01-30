@@ -138,24 +138,30 @@ func OnionAddressV3(pk ed25519.PublicKey) (onionAddress string, err error) {
 
 // Check whether onion address is a valid v3 one.
 func OnionAddressIsValidV3(onionAddress string) bool {
+	_, err := OnionAddressPublicKeyV3(onionAddress)
+	return err == nil
+}
+
+// Extract Ed25519 public key from the onion address.
+func OnionAddressPublicKeyV3(onionAddress string) (ed25519.PublicKey, error) {
 	oa, err := Base32Decode(onionAddress)
 	if err != nil {
-		return false
+		return nil, errors.New("Error while base32 decoding onion address")
 	}
 	if len(oa) != OnionAddressLengthV3 {
-		return false
+		return nil, errors.New("Wrong onion address length")
 	}
 	oab := bytes.NewBuffer(oa)
 	pk := oab.Next(ed25519.PublicKeySize)
 	chksum := oab.Next(OnionAddressChecksumLengthV3)
 	ver := oab.Next(OnionAddressVersionFieldLengthV3)
 	if !reflect.DeepEqual(ver, OnionAddressVersionFieldV3) {
-		return false
+		return nil, errors.New("Invalid onion address version value")
 	}
 	if !reflect.DeepEqual(chksum, OnionAddressChecksumV3(pk)) {
-		return false
+		return nil, errors.New("Invalid onion address checksum")
 	}
-	return true
+	return ed25519.PublicKey(pk), nil
 }
 
 // Generate v3 onion address key (Ed25519) using rand as the entropy source
