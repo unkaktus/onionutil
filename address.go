@@ -36,10 +36,10 @@ func GenerateOnionKey(rand io.Reader, version string) (crypto.PrivateKey, error)
 // OnionAddress returns onion address corresponding to public/private key pk.
 func OnionAddress(pk crypto.PublicKey) (string, error) {
 	switch pk := pk.(type) {
-	case rsa.PublicKey:
+	case *rsa.PublicKey:
 		return OnionAddressV2(pk)
-	case rsa.PrivateKey:
-		return OnionAddress(*(pk.Public().(*rsa.PublicKey)))
+	case *rsa.PrivateKey:
+		return OnionAddress(pk.Public().(*rsa.PublicKey))
 	case ed25519.PublicKey:
 		return OnionAddressV3(pk)
 	case ed25519.PrivateKey:
@@ -63,8 +63,8 @@ var (
 
 // OnionAddress returns the Tor Onion Service address corresponding to a given
 // rsa.PublicKey.
-func OnionAddressV2(pk rsa.PublicKey) (onionAddress string, err error) {
-	permID, err := CalcPermanentID(&pk)
+func OnionAddressV2(pk *rsa.PublicKey) (onionAddress string, err error) {
+	permID, err := CalcPermanentID(pk)
 	if err != nil {
 		return onionAddress, err
 	}
@@ -78,7 +78,7 @@ func GenerateOnionKeyV2(rand io.Reader) (crypto.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return *sk, nil
+	return sk, nil
 }
 
 // Check whether onion address is a valid v2 one.
