@@ -57,8 +57,8 @@ func (desc *OnionDescriptor) Update(replica int) (err error) {
 	if !(MinReplica <= replica || replica <= MaxReplica) {
 		return fmt.Errorf("Replica is out of range")
 	}
-	desc.SecretIDPart = calcSecretID(permID, currentTime, byte(replica))
-	desc.DescID = calcDescriptorID(permID, desc.SecretIDPart)
+	desc.SecretIDPart = CalcSecretID(permID, currentTime, byte(replica))
+	desc.DescID = CalcDescriptorID(permID, desc.SecretIDPart)
 	return
 }
 
@@ -162,7 +162,7 @@ func (desc *OnionDescriptor) VerifySignature() error {
 }
 
 /* TODO: there is no `descriptor-cookie` now (because we need IP list encryption etc) */
-func calcSecretID(permID []byte, currentTime int64, replica byte) (secretID []byte) {
+func CalcSecretID(permID []byte, currentTime int64, replica byte) (secretID []byte) {
 	permIDByte := uint32(permID[0])
 
 	timePeriodInt := (uint32(currentTime) + permIDByte*86400/256) / 86400
@@ -176,10 +176,20 @@ func calcSecretID(permID []byte, currentTime int64, replica byte) (secretID []by
 	return secretID
 }
 
-func calcDescriptorID(permID, secretID []byte) (descID []byte) {
+func CalcDescriptorID(permID, secretID []byte) (descID []byte) {
 	h := sha1.New()
 	h.Write(permID)
 	h.Write(secretID)
 	descID = h.Sum(nil)
 	return descID
+}
+
+func CalcDescIDByOnion(onion string, t time.Time, replica int) (string, error) {
+	permID, err := Base32Decode(onion)
+	if err != nil {
+		return "", err
+	}
+	secretID := CalcSecretID(permID, t.Unix(), byte(replica))
+	descID := CalcDescriptorID(permID, secretID)
+	return Base32Encode(descID), nil
 }
