@@ -15,21 +15,24 @@ import (
 	"io/ioutil"
 )
 
-func LoadPrivateKeyFile(filename string) (crypto.PrivateKey, error) {
+func LoadPrivateKeyFile(filename string) (crypto.PrivateKey, crypto.PublicKey, error) {
 	fileContent, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	block, rest := pem.Decode(fileContent)
 	if len(rest) == len(fileContent) {
-		return nil, fmt.Errorf("No vailid PEM blocks found")
+		return nil, nil, fmt.Errorf("No vailid PEM blocks found")
 	}
 
 	switch block.Type {
 	case "RSA PRIVATE KEY":
 		sk, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		return sk, err
+		if err != nil {
+			return nil, nil, err
+		}
+		return sk, sk.Public(), err
 	default:
-		return nil, fmt.Errorf("Unrecognized type of PEM block")
+		return nil, nil, fmt.Errorf("Unrecognized type of PEM block")
 	}
 }
