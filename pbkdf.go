@@ -13,6 +13,7 @@ import (
 
 	"github.com/nogoegst/balloon"
 	"github.com/nogoegst/blake2xb"
+	"github.com/dchest/blake2b"
 )
 
 var (
@@ -23,13 +24,13 @@ var (
 )
 
 func KeystreamReader(passphrase []byte, person []byte) (io.Reader, error) {
-	h := blake2xb.New512()
+	h := blake2b.New512()
 	secret := balloon.Balloon(h, passphrase, saltBalloon, uint64(sCost/h.Size()), uint64(tCost))
 
-	b2xbConfig := blake2xb.NewXConfig(0)
+	b2xbConfig := blake2xb.NewConfig(0)
 	b2xbConfig.Salt = saltXOF[:16]
 	b2xbConfig.Person = person[:16]
-	b2xb, err := blake2xb.NewX(b2xbConfig)
+	b2xb, err := blake2xb.NewWithConfig(b2xbConfig)
 	if err != nil {
 		return nil, err
 	}
