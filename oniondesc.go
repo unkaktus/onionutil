@@ -34,6 +34,7 @@ type OnionDescriptor struct {
 	ProtocolVersions []int
 	IntropointsBlock []byte
 	Signature        []byte
+	Replica          int
 }
 
 var (
@@ -44,24 +45,22 @@ var (
 )
 
 // Initialize defaults
-func (desc *OnionDescriptor) Update(replica int) (err error) {
-	/* v hardcoded values */
+func (desc *OnionDescriptor) InitDefaults() {
 	desc.Version = DescVersion
 	desc.ProtocolVersions = ProtocolVersions
-	/* ^ hardcoded values */
-	currentTime := time.Now().Unix()
-	roundedCurrentTime := currentTime - currentTime%(60*60)
-	desc.PublicationTime = time.Unix(roundedCurrentTime, 0)
+}
+
+// Finalize descriptor to sign.
+func (desc *OnionDescriptor) Finalize(now time.Time) error {
+	nowunix := now.Unix()
+	desc.PublicationTime = time.Unix(nowunix-nowunix%(60*60), 0)
 	permID, err := CalcPermanentID(desc.PermanentKey)
 	if err != nil {
 		return err
 	}
-	if !(MinReplica <= replica || replica <= MaxReplica) {
-		return fmt.Errorf("Replica is out of range")
-	}
-	desc.SecretIDPart = CalcSecretID(permID, currentTime, byte(replica))
+	desc.SecretIDPart = CalcSecretID(permID, now, byte(desc.Replica))
 	desc.DescID = CalcDescriptorID(permID, desc.SecretIDPart)
-	return
+	return nil
 }
 
 // TODO return a pointer to descs not descs themselves?
@@ -164,10 +163,10 @@ func (desc *OnionDescriptor) VerifySignature() error {
 }
 
 /* TODO: there is no `descriptor-cookie` now (because we need IP list encryption etc) */
-func CalcSecretID(permID []byte, currentTime int64, replica byte) (secretID []byte) {
+func CalcSecretID(permID []byte, now time.Time, replica byte) (secretID []byte) {
 	permIDByte := uint32(permID[0])
 
-	timePeriodInt := (uint32(currentTime) + permIDByte*86400/256) / 86400
+	timePeriodInt := (uint32(now.Unix()) + permIDByte*86400/256) / 86400
 	var timePeriod = new(bytes.Buffer)
 	binary.Write(timePeriod, binary.BigEndian, timePeriodInt)
 
@@ -191,7 +190,7 @@ func CalcDescIDByOnion(onion string, t time.Time, replica int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	secretID := CalcSecretID(permID, t.Unix(), byte(replica))
+	secretID := CalcSecretID(permID, t, byte(replica))
 	descID := CalcDescriptorID(permID, secretID)
 	return Base32Encode(descID), nil
 }
