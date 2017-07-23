@@ -9,6 +9,8 @@ package onionutil
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
 	"encoding/binary"
@@ -143,9 +145,9 @@ func (desc *OnionDescriptor) OnionID() (string, error) {
 	return onionID, nil
 }
 
-func (desc *OnionDescriptor) Sign(doSign func(digest []byte) ([]byte, error)) error {
+func (desc *OnionDescriptor) Sign(signer crypto.Signer) error {
 	descDigest := Hash(desc.Bytes())
-	signature, err := doSign(descDigest)
+	signature, err := signer.Sign(rand.Reader, descDigest, crypto.Hash(0))
 	if err != nil {
 		return err
 	}
