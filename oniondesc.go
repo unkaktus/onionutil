@@ -15,6 +15,7 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -193,4 +194,21 @@ func CalcDescIDByOnion(onion string, t time.Time, replica int) (string, error) {
 	secretID := CalcSecretID(permID, t, byte(replica))
 	descID := CalcDescriptorID(permID, secretID)
 	return Base32Encode(descID), nil
+}
+
+func (desc *OnionDescriptor) FullSign(signer crypto.Signer) error {
+	var ok bool
+	desc.PermanentKey, ok = signer.Public().(*rsa.PublicKey)
+	if !ok {
+		return errors.New("signer is not RSA")
+	}
+	err := desc.Finalize(time.Now())
+	if err != nil {
+		return fmt.Errorf("unable to update descriptor: %v", err)
+	}
+	err = desc.Sign(signer)
+	if err != nil {
+		return fmt.Errorf("unable to sign descriptor: %v", err)
+	}
+	return nil
 }
