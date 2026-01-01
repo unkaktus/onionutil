@@ -15,8 +15,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/nogoegst/onionutil/pkcs1"
-	"github.com/nogoegst/onionutil/torparse"
+	"github.com/unkaktus/onionutil/pkcs1"
+	"github.com/unkaktus/onionutil/torparse"
 )
 
 type IntroductionPoint struct {

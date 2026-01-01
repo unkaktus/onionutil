@@ -15,7 +15,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/nogoegst/onionutil/pkcs1"
+	"github.com/unkaktus/onionutil/pkcs1"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/sha3"
 )

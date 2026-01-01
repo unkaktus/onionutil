@@ -1,3 +1,7 @@
-module github.com/nogoegst/onionutil
+module github.com/unkaktus/onionutil
 
-require golang.org/x/crypto v0.0.0-20181106171534-e4dc69e5b2fd
+go 1.25.4
+
+require golang.org/x/crypto v0.46.0
+
+require golang.org/x/sys v0.39.0 // indirect

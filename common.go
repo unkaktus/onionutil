@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nogoegst/onionutil/torparse"
+	"github.com/unkaktus/onionutil/torparse"
 )
 
 const (
